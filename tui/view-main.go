@@ -177,6 +177,12 @@ func (view *MainView) OnKeyEvent(event mauview.KeyEvent) bool {
 		view.SwitchRoom(view.roomList.Previous())
 	case "search_rooms":
 		view.ShowModal(NewFuzzySearchModal(view, 42, 12))
+	case "search_spaces":
+		view.ShowModal(NewSpaceSwitcherModal(view, 42, 12))
+	case "next_space":
+		view.SwitchToNextSpace()
+	case "prev_space":
+		view.SwitchToPrevSpace()
 	case "scroll_up":
 		msgView := view.currentRoom.MessageView()
 		msgView.AddScrollOffset(msgView.TotalHeight())
@@ -272,6 +278,60 @@ func (view *MainView) SwitchRoom(roomID id.RoomID) {
 		}()
 	}
 	view.parent.Render()
+}
+
+func (view *MainView) SwitchToSpace(spaceID id.RoomID) {
+	rooms := view.matrix.GetRoomsInSpace(spaceID)
+	if len(rooms) == 0 {
+		debug.Print("Space", spaceID, "has no rooms")
+		return
+	}
+	// Switch to the first room in the space (could be improved with recency tracking)
+	view.SwitchRoom(rooms[0])
+}
+
+func (view *MainView) SwitchToNextSpace() {
+	spaces := view.matrix.GetSpaceList()
+	if len(spaces) == 0 {
+		return
+	}
+	currentRoom := view.currentRoom
+	if currentRoom == nil {
+		view.SwitchToSpace(spaces[0].RoomID)
+		return
+	}
+	// Find the first space after the current room's space
+	for i, space := range spaces {
+		if view.matrix.IsRoomInSpace(space.RoomID, currentRoom.Room.ID) {
+			nextSpace := spaces[(i+1)%len(spaces)]
+			view.SwitchToSpace(nextSpace.RoomID)
+			return
+		}
+	}
+	// Current room is not in any space, switch to first space
+	view.SwitchToSpace(spaces[0].RoomID)
+}
+
+func (view *MainView) SwitchToPrevSpace() {
+	spaces := view.matrix.GetSpaceList()
+	if len(spaces) == 0 {
+		return
+	}
+	currentRoom := view.currentRoom
+	if currentRoom == nil {
+		view.SwitchToSpace(spaces[len(spaces)-1].RoomID)
+		return
+	}
+	// Find the first space before the current room's space
+	for i, space := range spaces {
+		if view.matrix.IsRoomInSpace(space.RoomID, currentRoom.Room.ID) {
+			prevSpace := spaces[(i-1+len(spaces))%len(spaces)]
+			view.SwitchToSpace(prevSpace.RoomID)
+			return
+		}
+	}
+	// Current room is not in any space, switch to last space
+	view.SwitchToSpace(spaces[len(spaces)-1].RoomID)
 }
 
 func (view *MainView) NotifyMessage(room *store.RoomStore, notif jsoncmd.SyncNotification) {

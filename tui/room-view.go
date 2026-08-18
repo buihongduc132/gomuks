@@ -381,6 +381,18 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 	case "scroll_down":
 		msgView.AddScrollOffset(-msgView.Height() / 2)
 		return true
+	case "reply":
+		view.StartSelecting(SelectReply, "")
+		return true
+	case "react":
+		view.StartSelecting(SelectReact, "")
+		return true
+	case "redact":
+		view.StartSelecting(SelectRedact, "")
+		return true
+	case "copy":
+		view.StartSelecting(SelectCopy, "")
+		return true
 	case "send":
 		view.InputSubmit(view.input.GetText())
 		return true
