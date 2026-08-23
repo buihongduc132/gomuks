@@ -89,7 +89,7 @@ if [ "$MODE" = "server" ] && [ "${DEPLOY_FULL:-0}" = "1" ]; then
 else
 	echo "-- $MODE build (no web)"
 	if [ "$MODE" = "client" ]; then
-		./build-terminal.sh
+		GO_BUILD_TAGS="sqlite_fts5 ${GO_BUILD_TAGS:-}" ./build-terminal.sh
 	else
 		./build-noweb.sh
 	fi
