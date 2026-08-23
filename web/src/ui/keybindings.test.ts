@@ -83,6 +83,7 @@ let composer: HTMLInputElement | undefined
 let search: HTMLInputElement | undefined
 
 beforeEach(() => {
+	localStorage.clear()
 	composer = document.createElement("input")
 	composer.id = "message-composer"
 	document.body.appendChild(composer)
@@ -345,15 +346,21 @@ describe("Keybindings listen", () => {
 	test("listen attaches keydown and keyup handlers and dispose detaches them", () => {
 		const addSpy = vi.spyOn(document.body, "addEventListener")
 		const removeSpy = vi.spyOn(document.body, "removeEventListener")
+		const winAdd = vi.spyOn(window, "addEventListener")
+		const winRemove = vi.spyOn(window, "removeEventListener")
 		const { kb } = setup()
 		const dispose = kb.listen()
 		expect(addSpy).toHaveBeenCalledWith("keydown", kb.onKeyDown)
 		expect(addSpy).toHaveBeenCalledWith("keyup", kb.onKeyUp)
+		expect(winAdd).toHaveBeenCalledWith("gomuks-keybindings-changed", kb.reload)
 		dispose()
 		expect(removeSpy).toHaveBeenCalledWith("keydown", kb.onKeyDown)
 		expect(removeSpy).toHaveBeenCalledWith("keyup", kb.onKeyUp)
+		expect(winRemove).toHaveBeenCalledWith("gomuks-keybindings-changed", kb.reload)
 		addSpy.mockRestore()
 		removeSpy.mockRestore()
+		winAdd.mockRestore()
+		winRemove.mockRestore()
 	})
 
 	test("attached listeners dispatch real keydown events", () => {
@@ -375,5 +382,15 @@ describe("Keybindings listen", () => {
 			dispose1()
 			dispose2()
 		}).not.toThrow()
+	})
+
+	test("reload picks up localStorage overrides", () => {
+		const { kb, context } = setup()
+		localStorage.setItem("gomuks-keybindings", JSON.stringify({ close_panel: "F10" }))
+		kb.reload()
+		kb.onKeyDown(fakeKeyEvent({ key: "Escape" }))
+		expect(context.clearActiveRoom).not.toHaveBeenCalled()
+		kb.onKeyDown(fakeKeyEvent({ key: "F10" }))
+		expect(context.clearActiveRoom).toHaveBeenCalledTimes(1)
 	})
 })

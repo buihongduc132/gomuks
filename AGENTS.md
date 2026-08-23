@@ -42,9 +42,10 @@ web/
 └── dist/           # built assets (served by daemon)
 ```
 
-## Current hotkeys (hardcoded)
+## Current hotkeys (defaults, user-configurable)
 
-Source: `web/src/ui/keybindings.ts` → `keyDownMap` object.
+Web: `web/src/ui/keyconfig.ts` defaults, loaded via localStorage `gomuks-keybindings`, edited in Settings → Keybindings.
+Terminal: `tui/config/keybindings.yaml` embed + `~/.config/gomuks/terminal-keybindings.yaml` override. Room `Ctrl+r` = reply-select.
 
 | Key | Action |
 |-----|--------|
@@ -53,6 +54,8 @@ Source: `web/src/ui/keybindings.ts` → `keyDownMap` object.
 | Alt+↑ | Next room in list |
 | Alt+↓ | Previous room in list |
 | Ctrl+f | Open search panel |
+| Ctrl+ArrowUp / Ctrl+ArrowDown | Web: select previous/next message to reply (preference-gated) |
+| Ctrl+r | Terminal: enter select-to-reply mode |
 
 ## Testing
 
@@ -63,17 +66,9 @@ Source: `web/src/ui/keybindings.ts` → `keyDownMap` object.
 
 ## Fork intention
 
-**Goal**: Make hotkeys user-configurable (config file + UI settings panel).
+**Goal**: Make hotkeys user-configurable (config file + UI settings panel) + reply-select hotkey in web and terminal.
 
-**Why**: Upstream has 5 hardcoded bindings — thin vs Element/iamb. Users want custom bindings (jump-to-room, mark-read, reply/edit shortcuts). No config file support exists.
-
-**Approach** (to be implemented):
-1. Load keybindings from config file (`~/.config/gomuks/keybindings.yaml`) OR web localStorage
-2. Settings UI panel for editing bindings
-3. Default keymap = current hardcoded values (backward-compat)
-4. Validation: no duplicate bindings, reserved keys (Enter, Tab, printable chars while composing)
-
-See `flow/intentions/configurable-hotkeys.md` for full plan.
+See `flow/intentions/configurable-hotkeys.md` and `flow/intentions/reply-hotkey.md`.
 
 ## Deployment (local bin via mise)
 
@@ -98,8 +93,9 @@ mise run deploy-status   # show manifests (mode/commit/branch/time)
 
 ## Gotchas
 
-- `keyDownMap` = runtime object, NOT loaded from config (yet)
-- Any key not in keyDownMap + not modifier-only + target=body → auto-focuses composer (line 100)
+- Web keyDownMap is rebuilt from `keyconfig` defaults + localStorage overrides (`reload()` / `gomuks-keybindings-changed`)
+- Any key not in keyDownMap + not modifier-only + target=body → auto-focuses composer
+- Enter/Tab stay reserved; reply keys stay composer-scoped (need composer state)
 - Upstream updates: rebase fork on upstream/main (gomuks/gomuks active, ~weekly commits)
 
 ## Boundaries
@@ -116,5 +112,6 @@ mise run deploy-status   # show manifests (mode/commit/branch/time)
 | Area | Read |
 |------|------|
 | Hotkey implementation plan | `flow/intentions/configurable-hotkeys.md` |
+| Reply-select hotkey | `flow/intentions/reply-hotkey.md` |
 | Upstream docs | https://docs.mau.fi/gomuks/ |
 | Matrix room | #gomuks:gomuks.app |
