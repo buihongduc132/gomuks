@@ -1,7 +1,7 @@
 # Intention: Make gomuks hotkeys configurable
 
 **Date**: 2026-08-16
-**Status**: planned (implementation NOT started)
+**Status**: implemented (2026-08-23) — settings UI + localStorage overrides live
 **Fork purpose**: This fork exists SOLELY for this feature (until upstreamed)
 
 ## Why
