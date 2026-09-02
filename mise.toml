@@ -20,3 +20,9 @@ description = "Deploy to PROD daemon bin (gomuks-daemon-patched). Overwrites liv
 [tasks.deploy-status]
 run = "bash ops/deploy/deploy-local.sh --status"
 description = "Show deployed bin manifests (mode, commit, branch, time)."
+
+[tasks.git-commit]
+run = "GIT_COMMIT_GATE=1 git commit"
+description = "Git commit with pre-commit gate authorization"
+
+

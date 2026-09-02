@@ -16,3 +16,7 @@ deb/usr
 *.dll
 *.dylib
 *.so
+.pi/
+/gomuks-*
+coverage/
+web/coverage/
