@@ -51,4 +51,3 @@ room:
     'Alt+Delete': redact
     'Alt+c': copy
     'Enter': send
-    'Ctrl+r': reply

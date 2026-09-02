@@ -145,3 +145,42 @@ func TestClear_RemovesSpaces(t *testing.T) {
 		t.Error("expected space edges to be cleared")
 	}
 }
+
+func TestApplySync_LeavingChildRoomRemovesEdgeFromParent(t *testing.T) {
+	st := newSyncedStore()
+	if !st.IsRoomInSpace(spaceA, roomX) {
+		t.Fatal("precondition failed: roomX should be in spaceA")
+	}
+
+	st.ApplySync(&jsoncmd.SyncComplete{LeftRooms: []id.RoomID{roomX}})
+
+	if st.IsRoomInSpace(spaceA, roomX) {
+		t.Error("expected roomX to be removed from spaceA edges after being left")
+	}
+	if got := st.GetRoomsInSpace(spaceA); len(got) != 0 {
+		t.Errorf("expected spaceA to have no rooms, got %v", got)
+	}
+}
+
+func TestGetSpaceList_UnnamedSpaceFallback(t *testing.T) {
+	unnamedSpaceID := id.RoomID("!unnamed:example.org")
+	st := store.NewStore()
+	st.ApplySync(&jsoncmd.SyncComplete{
+		Rooms: map[id.RoomID]*jsoncmd.SyncRoom{
+			unnamedSpaceID: {
+				Meta: &database.Room{
+					ID:              unnamedSpaceID,
+					CreationContent: &event.CreateEventContent{Type: event.RoomTypeSpace},
+				},
+			},
+		},
+	})
+
+	spaces := st.GetSpaceList()
+	if len(spaces) != 1 {
+		t.Fatalf("expected 1 space, got %d", len(spaces))
+	}
+	if spaces[0].Name != string(unnamedSpaceID) {
+		t.Errorf("expected fallback name %q, got %q", string(unnamedSpaceID), spaces[0].Name)
+	}
+}

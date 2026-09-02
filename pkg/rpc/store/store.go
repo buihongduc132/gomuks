@@ -168,6 +168,16 @@ func (gs *GomuksStore) ApplySync(sync *jsoncmd.SyncComplete) {
 	for _, roomID := range sync.LeftRooms {
 		delete(gs.rooms, roomID)
 		delete(gs.spaceEdges, roomID)
+		for parentSpaceID, edges := range gs.spaceEdges {
+			filtered := slices.DeleteFunc(edges, func(edge *database.SpaceEdge) bool {
+				return edge.ChildID == roomID
+			})
+			if len(filtered) == 0 {
+				delete(gs.spaceEdges, parentSpaceID)
+			} else {
+				gs.spaceEdges[parentSpaceID] = filtered
+			}
+		}
 		changedRoomListEntries[roomID] = nil
 	}
 
@@ -243,9 +253,13 @@ func (gs *GomuksStore) buildSpaceList() []*SpaceEntry {
 		if meta.GetType() != event.RoomTypeSpace {
 			continue
 		}
+		name := ptr.Val(meta.Name)
+		if name == "" {
+			name = string(meta.ID)
+		}
 		spaces = append(spaces, &SpaceEntry{
 			RoomID: meta.ID,
-			Name:   ptr.Val(meta.Name),
+			Name:   name,
 		})
 	}
 	slices.SortFunc(spaces, func(a, b *SpaceEntry) int {
