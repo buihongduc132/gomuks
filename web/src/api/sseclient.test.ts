@@ -58,15 +58,13 @@ describe("SSEClient", () => {
 		client = new SSEClient()
 	})
 
-	describe("constructor", () => {
-		it("registers focus listener", () => {
+	describe("start", () => {
+		it("registers focus listener on start", () => {
 			const spy = vi.spyOn(window, "addEventListener")
-			new SSEClient()
+			client.start()
 			expect(spy).toHaveBeenCalledWith("focus", expect.any(Function))
 		})
-	})
 
-	describe("start", () => {
 		it("creates EventSource with SSE URL", () => {
 			client.start()
 			expect(getLastES().url.startsWith("_gomuks/sse?")).toBe(true)

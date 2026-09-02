@@ -19,14 +19,34 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 // so each scenario stubs the globals and re-imports the module fresh.
 async function loadModule(win: Record<string, unknown>, userAgent: string) {
 	vi.resetModules()
-	vi.stubGlobal("window", win)
+	if ("ontouchstart" in win) {
+		Object.defineProperty(window, "ontouchstart", { value: win.ontouchstart, configurable: true, writable: true })
+	} else {
+		delete (window as unknown as Record<string, unknown>).ontouchstart
+	}
+	if ("innerWidth" in win) {
+		Object.defineProperty(window, "innerWidth", { value: win.innerWidth, configurable: true, writable: true })
+	}
+	if ("chrome" in win) {
+		;(window as unknown as Record<string, unknown>).chrome = win.chrome
+		;(globalThis as unknown as Record<string, unknown>).chrome = win.chrome
+	} else {
+		delete (window as unknown as Record<string, unknown>).chrome
+		delete (globalThis as unknown as Record<string, unknown>).chrome
+	}
 	vi.stubGlobal("navigator", { userAgent })
 	return await import("./ismobile")
 }
 
+
 afterEach(() => {
+	delete (window as unknown as Record<string, unknown>).ontouchstart
+	delete (window as unknown as Record<string, unknown>).chrome
+	delete (globalThis as unknown as Record<string, unknown>).chrome
 	vi.unstubAllGlobals()
 })
+
+
 
 describe("isMobileDevice", () => {
 	test("true when touch is supported and the viewport is narrow", async () => {

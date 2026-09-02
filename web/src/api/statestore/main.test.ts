@@ -67,11 +67,13 @@ function makeEvent(overrides: Partial<RawDBEvent> = {}): RawDBEvent {
 		type: "m.room.message",
 		timestamp: 1700000000000,
 		content: { body: "hello" },
+		local_content: { preview_text: "hello" },
 		unsigned: {},
 		unread_type: UnreadType.None,
 		...overrides,
 	}
 }
+
 
 function makeInvite(overrides: Partial<DBInvitedRoom> = {}): DBInvitedRoom {
 	return {
@@ -957,9 +959,9 @@ describe("showNotification", () => {
 		expect(notifications.length).toBe(0)
 	})
 
-	test("skips notification when body is not a string", () => {
+	test("skips notification when preview_text is missing", () => {
 		const store = makeStore()
-		const evt = makeEvent({ rowid: 6, content: {} })
+		const evt = makeEvent({ rowid: 6, content: {}, local_content: undefined })
 		store.applySync({
 			rooms: { "!room:example.com": makeSyncRoom({ events: [evt] }) },
 		})
@@ -968,19 +970,18 @@ describe("showNotification", () => {
 		expect(notifications.length).toBe(0)
 	})
 
-	test("truncates long bodies", () => {
+	test("shows notification with preview text", () => {
 		const store = makeStore()
-		const longBody = "x".repeat(500)
-		const evt = makeEvent({ rowid: 7, content: { body: longBody } })
+		const evt = makeEvent({ rowid: 7, content: { body: "msg" }, local_content: { preview_text: "msg" } })
 		store.applySync({
 			rooms: { "!room:example.com": makeSyncRoom({ events: [evt] }) },
 		})
 		const room = store.rooms.get("!room:example.com")!
 		store.showNotification(room, 7, false)
 		const notif = notifications[0] as { options: { body: string } }
-		expect(notif.options.body.length).toBeLessThan(500)
-		expect(notif.options.body).toContain("…")
+		expect(notif.options.body).toBe("msg")
 	})
+
 
 	test("does not show notification when desktop handles them", () => {
 		const store = makeStore()
