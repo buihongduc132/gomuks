@@ -80,6 +80,9 @@ type RoomView struct {
 		time      time.Time
 	}
 
+	tempStatus       string
+	tempStatusExpiry time.Time
+
 	unlistenMeta     func()
 	unlistenTimeline func()
 }
@@ -227,8 +230,25 @@ func (view *RoomView) OnSelect(message *messages.UIMessage) {
 	view.input.Focus()
 }
 
+func (view *RoomView) SetStatusNotification(msg string, duration time.Duration) {
+	view.tempStatus = msg
+	view.tempStatusExpiry = time.Now().Add(duration)
+	if view.parent != nil && view.parent.parent != nil {
+		view.parent.parent.Render()
+	}
+}
+
 func (view *RoomView) GetStatus() string {
 	var buf strings.Builder
+
+	if view.tempStatus != "" {
+		if time.Now().Before(view.tempStatusExpiry) {
+			buf.WriteString(view.tempStatus)
+			buf.WriteString(" - ")
+		} else {
+			view.tempStatus = ""
+		}
+	}
 
 	if view.editing != nil {
 		buf.WriteString("Editing message - ")
@@ -381,11 +401,20 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 	case "scroll_down":
 		msgView.AddScrollOffset(-msgView.Height() / 2)
 		return true
-	case "send":
-		view.InputSubmit(view.input.GetText())
-		return true
 	case "reply":
 		view.StartSelecting(SelectReply, "")
+		return true
+	case "react":
+		view.StartSelecting(SelectReact, "")
+		return true
+	case "redact":
+		view.StartSelecting(SelectRedact, "")
+		return true
+	case "copy":
+		view.StartSelecting(SelectCopy, "")
+		return true
+	case "send":
+		view.InputSubmit(view.input.GetText())
 		return true
 	}
 	return view.input.OnKeyEvent(event)
