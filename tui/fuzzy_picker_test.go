@@ -142,3 +142,35 @@ func TestFuzzyPickerModal_InitialPopulate(t *testing.T) {
 	}
 }
 
+func TestFuzzyPickerModal_FilterAndRestoreAll(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.LoadKeybindings()
+
+	mainView := &MainView{
+		config: cfg,
+	}
+
+	titles := []string{"All Rooms", "Work Space", "Community", "Gaming"}
+
+	picker := NewFuzzyPickerModal(mainView, "Space Switcher", titles, nil, 40, 10)
+
+	// Filter down to 1 item
+	picker.changeHandler("Gaming")
+	if len(picker.matches) != 1 {
+		t.Fatalf("expected 1 match for 'Gaming', got %d", len(picker.matches))
+	}
+	if picker.matches[0].Target != "Gaming" {
+		t.Errorf("expected match to be 'Gaming', got %q", picker.matches[0].Target)
+	}
+
+	// Backspace / clear query restores all 4 items
+	picker.changeHandler("")
+	if len(picker.matches) != 4 {
+		t.Fatalf("expected 4 matches after clearing query, got %d", len(picker.matches))
+	}
+	if picker.matches[0].Target != "All Rooms" {
+		t.Errorf("expected first item to be 'All Rooms', got %q", picker.matches[0].Target)
+	}
+}
+
+
