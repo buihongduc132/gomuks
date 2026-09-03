@@ -73,6 +73,7 @@ func NewFuzzyPickerModal(mainView *MainView, title string, titles []string, onSe
 		})
 
 	fp.Component = mauview.Center(fp.container, width, height).SetAlwaysFocusChild(true)
+	fp.changeHandler("")
 
 	return fp
 }
@@ -86,8 +87,32 @@ func (fp *FuzzyPickerModal) Blur() {
 }
 
 func (fp *FuzzyPickerModal) changeHandler(str string) {
+	if len(str) == 0 {
+		fp.matches = make(fuzzy.Ranks, len(fp.titles))
+		for i, title := range fp.titles {
+			fp.matches[i] = fuzzy.Rank{
+				Source:        "",
+				Target:        title,
+				OriginalIndex: i,
+				Distance:      0,
+			}
+		}
+		fp.results.Clear()
+		for _, match := range fp.matches {
+			_, _ = fmt.Fprintf(fp.results, `["%d"]%s[""]%s`, match.OriginalIndex, match.Target, "\n")
+		}
+		if len(fp.matches) > 0 {
+			fp.results.Highlight(strconv.Itoa(fp.matches[0].OriginalIndex))
+			fp.selected = 0
+			fp.results.ScrollToBeginning()
+		} else {
+			fp.results.Highlight()
+		}
+		return
+	}
+
 	fp.matches = fuzzy.RankFindFold(str, fp.titles)
-	if len(str) > 0 && len(fp.matches) > 0 {
+	if len(fp.matches) > 0 {
 		sort.Sort(fp.matches)
 		fp.results.Clear()
 		for _, match := range fp.matches {
@@ -101,6 +126,7 @@ func (fp *FuzzyPickerModal) changeHandler(str string) {
 		fp.results.Highlight()
 	}
 }
+
 
 func (fp *FuzzyPickerModal) OnKeyEvent(event mauview.KeyEvent) bool {
 	highlights := fp.results.GetHighlights()

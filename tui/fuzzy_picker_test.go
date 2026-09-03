@@ -107,3 +107,38 @@ func TestFuzzyPickerModal_CycleMatches(t *testing.T) {
 		t.Errorf("expected selected item %d, got %d", expectedIndex, selectedIndex)
 	}
 }
+
+func TestFuzzyPickerModal_InitialPopulate(t *testing.T) {
+	cfg := config.NewConfig()
+	cfg.LoadKeybindings()
+
+	mainView := &MainView{
+		config: cfg,
+	}
+
+	titles := []string{"All Rooms", "Work Space", "Community", "Gaming"}
+	var selectedIndex int = -1
+
+	picker := NewFuzzyPickerModal(mainView, "Space Switcher", titles, func(index int) {
+		selectedIndex = index
+	}, 40, 10)
+
+	// Initially with query "", all 4 items should be listed
+	if len(picker.matches) != 4 {
+		t.Fatalf("expected 4 matches initially on empty query, got %d", len(picker.matches))
+	}
+	if picker.selected != 0 {
+		t.Errorf("expected initially selected index 0, got %d", picker.selected)
+	}
+	if picker.matches[0].Target != "All Rooms" {
+		t.Errorf("expected first item to be 'All Rooms', got %q", picker.matches[0].Target)
+	}
+
+	// Immediate Enter on open selects the first item ("All Rooms")
+	enterEvt := tcell.NewEventKey(tcell.KeyEnter, 13, 0)
+	picker.OnKeyEvent(enterEvt)
+	if selectedIndex != 0 {
+		t.Errorf("expected selectedIndex 0 on initial Enter, got %d", selectedIndex)
+	}
+}
+
