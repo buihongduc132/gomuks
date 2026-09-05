@@ -1,0 +1,30 @@
+- id: LD1
+  turn: turn2
+  parts:
+    - "Terminal Target Priority Analysis"
+    - "Architectural Strategy: Two-Tier Protocol Hierarchy"
+  user_quote: |
+    we are aiming for the approach that could supported wezterm first ; and iterm ; for the rest , the more the better;
+  decision: Prioritize WezTerm first and iTerm2 second via iTerm2 OSC 1337 protocol, with ANSI half-blocks as universal fallback for all other terminals.
+  status: locked
+
+- id: LD2
+  turn: turn1
+  parts:
+    - "Decisions & Callouts"
+    - "Minimal Approach & Anti-Over-Engineering"
+  user_quote: |
+    --- 1 search remote on how do we be able to shows the img in the terminal if it is supported ; 
+
+    How can we implement it in gomuks itself ;
+  decision: Inherit Gomuks built-in ansimage TrueColor half-block engine for character-cell timeline rendering without protocol-level screen tearing.
+  status: locked
+
+- id: LD3
+  turn: turn4
+  parts:
+    - "Synthesis: Adopting the iamb Architecture"
+  user_quote: |
+    Note that iamb is working flawlessly; follow it approach for me ;
+  decision: Replicate iamb's ratatui-image architecture (Protocol Picker with config override, cell-masking for inline graphics, 2D clamped bounding box, and thumbnail-based media loading).
+  status: locked

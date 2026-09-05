@@ -1,0 +1,63 @@
+status: ongoing
+threads:
+  - id: OT1
+    topic: osc1337-vs-halfblock-timeline-rendering
+    raised_in: turn1
+    status: open
+    severity: 4
+    note: |
+      WezTerm and iTerm2 share native support for iTerm2 OSC 1337 inline images, while ANSI half-blocks ('▄') provides universal fallback. In tcell, raw OSC 1337 bursts risk redraw overwrites during timeline scrolling. Following iamb/ratatui-image, must apply cell masking (empty placeholder cells in tcell) when rendering inline OSC 1337.
+  - id: OT2
+    topic: async-download-ui-redraw-signal
+    raised_in: turn1
+    status: open
+    severity: 3
+    note: |
+      DownloadPreview must fetch image bytes on a background goroutine and dispatch a redraw event to the main TUI loop so the client remains responsive while media loads.
+  - id: OT3
+    topic: timeline-dimension-clamping
+    raised_in: turn1
+    status: open
+    severity: 2
+    note: |
+      Unconstrained image scaling will drown the timeline view. FileMessage.CalculateBuffer needs explicit max-width and max-height bounds (e.g. iamb default: width 66, height 10-16).
+  - id: OT4
+    topic: tmux-passthrough-barrier
+    raised_in: turn3a
+    status: open
+    severity: 5
+    source: gotcha-coverage
+    note: |
+      Inside tmux, unescaped OSC 1337 prints raw base64 garbage unless wrapped in DCS passthrough (\x1bPtmux;\x1b...) and allow-passthrough is enabled. Must detect $TMUX and fall back to half-blocks if passthrough is unverified.
+  - id: OT5
+    topic: unbounded-bitmap-decompression-oom
+    raised_in: turn3a
+    status: open
+    severity: 5
+    source: gotcha-coverage
+    note: |
+      Decompressing 50MP photos into raw RGBA causes multi-hundred megabyte memory spikes and OOM. Must check dimensions with image.DecodeConfig before allocating and clamp to safe pixel thresholds.
+  - id: OT6
+    topic: filemessage-concurrency-data-race
+    raised_in: turn3a
+    status: open
+    severity: 4
+    source: gotcha-coverage
+    note: |
+      FileMessage fields (imageData, buffer) are mutated on background worker goroutines while read on main UI thread. Requires sync.RWMutex or immutable event dispatch through tcell PostEvent.
+  - id: OT7
+    topic: ssh-env-scrubbing-config-override
+    raised_in: turn3a
+    status: open
+    severity: 4
+    source: gotcha-coverage
+    note: |
+      SSH scrubs $TERM_PROGRAM and $WEZTERM_PANE. Must provide explicit config override (image_preview.protocol in config.yaml) as in iamb.
+  - id: OT8
+    topic: homeserver-thumbnail-fetch
+    raised_in: turn3a
+    status: open
+    severity: 3
+    source: gotcha-coverage
+    note: |
+      Downloading full-resolution multi-megabyte media for a small preview wastes bandwidth. Query homeserver thumbnail API (width=320, height=240) for timeline previews.
