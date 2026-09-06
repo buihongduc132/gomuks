@@ -7,7 +7,7 @@
 > Branch: feat/terminal-image-preview  
 > Worktree: /home/bhd/Documents/Projects/bhd/gomuks-wt-terminal-images  
 > Location: flow/plans/terminal-image-preview.md (committed ad922195)  
-> Items: 15 total (0 implemented, 15 pending)
+> Items: 15 total (15 implemented, 0 pending)
 
 ## References
 - Intention: `flow/intentions/reply-hotkey.md` (established TUI extension conventions)
@@ -38,41 +38,41 @@
 
 ## DOD (Definition of Done)
 Plan done when ALL below true:
-- [ ] Image messages render visual previews inline in `gomuks-terminal` instead of falling back to plaintext URL links.
-- [ ] WezTerm and iTerm2 render high-resolution images via the iTerm2 OSC 1337 protocol without screen tearing during message scrolling.
-- [ ] All other terminals (and unconfigured tmux environments) cleanly fall back to 24-bit TrueColor ANSI half-blocks (`▄`).
-- [ ] Media download and decoding occur asynchronously on background workers without freezing the main TUI event loop.
-- [ ] Bitmap decompression bombs are rejected by validating dimensions with `image.DecodeConfig` before buffer allocation (capped at 16MP).
-- [ ] Previews adhere to a bounded 2D aspect-ratio clamped box (default max width 66 cols, max height 16 rows, min height 3 rows).
-- [ ] Terminal image protocol is user-configurable via `config.yaml` (`auto`, `iterm2`, `halfblocks`, `disabled`) to support SSH overrides.
-- [ ] Automated tests verify terminal picker detection, aspect ratio clamping, and thread-safe download lifecycles.
+- [x] Image messages render visual previews inline in `gomuks-terminal` instead of falling back to plaintext URL links.
+- [x] WezTerm and iTerm2 render high-resolution images via the iTerm2 OSC 1337 protocol without screen tearing during message scrolling.
+- [x] All other terminals (and unconfigured tmux environments) cleanly fall back to 24-bit TrueColor ANSI half-blocks (`▄`).
+- [x] Media download and decoding occur asynchronously on background workers without freezing the main TUI event loop.
+- [x] Bitmap decompression bombs are rejected by validating dimensions with `image.DecodeConfig` before buffer allocation (capped at 16MP).
+- [x] Previews adhere to a bounded 2D aspect-ratio clamped box (default max width 66 cols, max height 16 rows, min height 3 rows).
+- [x] Terminal image protocol is user-configurable via `config.yaml` (`auto`, `iterm2`, `halfblocks`, `disabled`) to support SSH overrides.
+- [x] Automated tests verify terminal picker detection, aspect ratio clamping, and thread-safe download lifecycles.
 
 ## Tasks
 
 ### Media Download & Lifecycle (`pkg/rpc/` & `tui/messages/`)
-- [ ] `dl-async-nonblocking`: `FileMessage.DownloadPreview` retrieves image data asynchronously via `gc.Download` without blocking the TUI event loop.
-- [ ] `dl-thread-safety`: `FileMessage` access to `imageData` and `buffer` is protected by mutex synchronization against concurrent reads during timeline rendering.
-- [ ] `dl-redraw-dispatch`: Download completion dispatches a UI redraw event to the active room view only if the room remains active.
-- [ ] `dl-thumbnail-api`: Media retrieval queries Matrix homeserver thumbnail endpoint (`format=jpeg&method=scale`) for preview generation when available.
+- [x] `dl-async-nonblocking`: `FileMessage.DownloadPreview` retrieves image data asynchronously via `gc.Download` without blocking the TUI event loop.
+- [x] `dl-thread-safety`: `FileMessage` access to `imageData` and `buffer` is protected by mutex synchronization against concurrent reads during timeline rendering.
+- [x] `dl-redraw-dispatch`: Download completion dispatches a UI redraw event to the active room view only if the room remains active.
+- [x] `dl-thumbnail-api`: Media retrieval queries Matrix homeserver thumbnail endpoint (`format=jpeg&method=scale`) for preview generation when available.
 
 ### Image Safety & Geometry Clamping (`tui/messages/` & `tui/lib/ansimage/`)
-- [ ] `img-decode-safety`: Image header dimensions are validated via `image.DecodeConfig` prior to full buffer allocation, rejecting payloads exceeding 16MP.
-- [ ] `img-box-clamping`: `CalculateBuffer` calculates dimensions within a proportional 2D bounding box (max width 66 cols, max height 16 rows, min height 3 rows).
-- [ ] `img-resize-debounce`: Rapid `SIGWINCH` resize events debounce image recalculations and cache rendered buffers by column width to prevent CPU lockup.
+- [x] `img-decode-safety`: Image header dimensions are validated via `image.DecodeConfig` prior to full buffer allocation, rejecting payloads exceeding 16MP.
+- [x] `img-box-clamping`: `CalculateBuffer` calculates dimensions within a proportional 2D bounding box (max width 66 cols, max height 16 rows, min height 3 rows).
+- [x] `img-resize-debounce`: Rapid `SIGWINCH` resize events debounce image recalculations and cache rendered buffers by column width to prevent CPU lockup.
 
 ### Protocol Picker & Terminal Detection (`tui/config/` & `tui/lib/`)
-- [ ] `proto-picker-detect`: Terminal graphics picker auto-detects WezTerm (`$TERM_PROGRAM == "WezTerm"` or `$WEZTERM_PANE != ""`) and iTerm2 (`$TERM_PROGRAM == "iTerm.app"` or `$LC_TERMINAL == "iTerm2"`).
-- [ ] `proto-picker-config`: `UserPreferences` supports `ImagePreviewProtocol` (`"auto"`, `"iterm2"`, `"halfblocks"`, `"disabled"`) and `ImagePreviewSize` with defaults.
-- [ ] `proto-tmux-passthrough`: When `$TMUX` is present, OSC 1337 escape sequences are wrapped in DCS tmux passthrough escapes (`\x1bPtmux;...`) or degraded to half-blocks if passthrough is unverified.
+- [x] `proto-picker-detect`: Terminal graphics picker auto-detects WezTerm (`$TERM_PROGRAM == "WezTerm"` or `$WEZTERM_PANE != ""`) and iTerm2 (`$TERM_PROGRAM == "iterm.app"` or `$LC_TERMINAL == "iTerm2"`).
+- [x] `proto-picker-config`: `UserPreferences` supports `ImagePreviewProtocol` (`"auto"`, `"iterm2"`, `"halfblocks"`, `"disabled"`) and `ImagePreviewSize` with defaults.
+- [x] `proto-tmux-passthrough`: When `$TMUX` is present, OSC 1337 escape sequences are wrapped in DCS tmux passthrough escapes (`\x1bPtmux;...`) or degraded to half-blocks if passthrough is unverified.
 
 ### Rendering & Screen Buffer Integration (`tui/messages/` & `tui/lib/`)
-- [ ] `render-halfblock-fallback`: `ansimage` TrueColor half-block cells (`▄`) render directly into `tstring.TString` buffers for universal terminal support.
-- [ ] `render-osc1337-cellmask`: In WezTerm/iTerm2 mode, inline OSC 1337 rendering masks underlying cells in `tcell.Screen` with blank placeholder cells to prevent redraw overwrites.
-- [ ] `render-modal-sync`: Dismissing modal or overlay previews triggers `screen.Sync()` to prevent ghosted graphic artifacts.
+- [x] `render-halfblock-fallback`: `ansimage` TrueColor half-block cells (`▄`) render directly into `tstring.TString` buffers for universal terminal support.
+- [x] `render-osc1337-cellmask`: In WezTerm/iTerm2 mode, inline OSC 1337 rendering masks underlying cells in `tcell.Screen` with blank placeholder cells to prevent redraw overwrites.
+- [x] `render-modal-sync`: Dismissing modal or overlay previews triggers `screen.Sync()` to prevent ghosted graphic artifacts.
 
 ### Verification & Automated Tests (`tui/messages/` & `tui/`)
-- [ ] `test-proto-picker`: Unit tests assert terminal detection correctly identifies WezTerm, iTerm2, tmux, and SSH fallback.
-- [ ] `test-box-clamping`: Unit tests assert extreme aspect ratios (panoramas and vertical strips) scale within bounded dimensions.
+- [x] `test-proto-picker`: Unit tests assert terminal detection correctly identifies WezTerm, iTerm2, tmux, and SSH fallback.
+- [x] `test-box-clamping`: Unit tests assert extreme aspect ratios (panoramas and vertical strips) scale within bounded dimensions.
 
 ## Idempotency
 Re-running `/10-plan-declarative` on same requirement reconciles to THIS plan.
