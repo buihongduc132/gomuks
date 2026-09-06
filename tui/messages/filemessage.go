@@ -85,6 +85,7 @@ type FileMessage struct {
 	cachedKitty []byte
 	imageID     uint32
 	renderCache map[int][]tstring.TString
+	textHeight  int
 
 	mask        *termimg.ImageMask
 	lastDrawnX  int
@@ -213,6 +214,7 @@ func (msg *FileMessage) Clone() MessageRenderer {
 		cachedProto:        msg.cachedProto,
 		cachedOSC:          oscCopy,
 		renderCache:        cacheCopy,
+		textHeight:         msg.textHeight,
 		matrix:             msg.matrix,
 		room:               msg.room,
 		uiMsg:              nil, // Linked by UIMessage.Clone() to avoid stale aliasing
@@ -611,33 +613,35 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		return
 	}
 
+	// Always calculate text buffer (for caption/filename)
+	url := msgURL.String()
+	if msgMatrix != nil {
+		url = msgMatrix.GetDownloadURL(msgURL, msgIsEncrypted, true)
+	}
+	var urlTString tstring.TString
+	if prefs.EnableInlineURLs() {
+		urlTString = tstring.NewStyleTString("Download media", tcell.StyleDefault.Url(url).UrlId(msgEventID.String()))
+	} else {
+		urlTString = tstring.NewTString(url)
+	}
+	text := tstring.NewTString(msgBody).
+		Append(": ").
+		AppendTString(urlTString)
+	if imgErr != nil {
+		text = text.AppendColor(fmt.Sprintf(" (%v)", imgErr), tcell.ColorRed)
+	}
+	textBuf := calculateBufferWithText(prefs, text, width, uiMsg)
+
 	// Fallback to text link if disabled, bare mode, or no image data
 	if prefs.BareMessageView || prefs.DisableImages || dataLen == 0 || effectiveProto == termimg.ProtocolDisabled {
-		url := msgURL.String()
-		if msgMatrix != nil {
-			url = msgMatrix.GetDownloadURL(msgURL, msgIsEncrypted, true)
-		}
-		var urlTString tstring.TString
-		if prefs.EnableInlineURLs() {
-			urlTString = tstring.NewStyleTString("Download media", tcell.StyleDefault.Url(url).UrlId(msgEventID.String()))
-		} else {
-			urlTString = tstring.NewTString(url)
-		}
-		text := tstring.NewTString(msgBody).
-			Append(": ").
-			AppendTString(urlTString)
-		if imgErr != nil {
-			text = text.AppendColor(fmt.Sprintf(" (%v)", imgErr), tcell.ColorRed)
-		}
-		buf := calculateBufferWithText(prefs, text, width, uiMsg)
-
 		msg.mu.Lock()
-		msg.buffer = buf
+		msg.buffer = textBuf
 		msg.cachedWidth = width
 		msg.cachedProto = effectiveProto
 		msg.cachedOSC = nil
 		msg.cachedKitty = nil
 		msg.imageID = 0
+		msg.textHeight = len(textBuf)
 		msg.lastEmitted = false
 		msg.mu.Unlock()
 		return
@@ -772,7 +776,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		}
 
 		msg.mu.Lock()
-		msg.buffer = placeholder
+		msg.textHeight = len(textBuf)
+		msg.buffer = append(textBuf, placeholder...)
 		msg.cachedOSC = oscBytes
 		msg.cachedKitty = nil
 		msg.imageID = 0
@@ -789,7 +794,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		}
 		cachedBuf, found := msg.renderCache[bbox.Cols]
 		if found && len(cachedBuf) == bbox.Rows {
-			msg.buffer = cachedBuf
+			msg.textHeight = len(textBuf)
+			msg.buffer = append(textBuf, cachedBuf...)
 			msg.cachedWidth = width
 			msg.cachedProto = effectiveProto
 			msg.cachedOSC = nil
@@ -808,7 +814,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 			debug.Print("Failed to render ansimage:", aErr)
 			msg.mu.Lock()
 			msg.imageErr = aErr
-			msg.buffer = []tstring.TString{tstring.NewColorTString("Failed to display image", tcell.ColorRed)}
+			msg.textHeight = len(textBuf)
+			msg.buffer = append(textBuf, tstring.NewColorTString("Failed to display image", tcell.ColorRed))
 			msg.cachedWidth = width
 			msg.cachedProto = effectiveProto
 			msg.cachedOSC = nil
@@ -825,7 +832,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 			msg.renderCache = make(map[int][]tstring.TString)
 		}
 		msg.renderCache[bbox.Cols] = rendered
-		msg.buffer = rendered
+		msg.textHeight = len(textBuf)
+		msg.buffer = append(textBuf, rendered...)
 		msg.cachedWidth = width
 		msg.cachedProto = effectiveProto
 		msg.cachedOSC = nil
@@ -875,14 +883,20 @@ func (msg *FileMessage) Draw(screen mauview.Screen, _ *UIMessage) {
 			return
 		}
 
-		rows := len(msg.buffer)
+		// Correct dimensions to exclude textBuf
+		rows := len(msg.buffer) - msg.textHeight
 		cols := 0
 		if rows > 0 {
-			cols = len(msg.buffer[0])
+			cols = len(msg.buffer[msg.textHeight])
 		}
 		if cols == 0 || rows == 0 {
+			for y, line := range msg.buffer {
+				line.Draw(screen, 0, y)
+			}
 			return
 		}
+
+		imgScreenY := screenY + msg.textHeight
 
 		// Determine visible viewport height
 		rootW, rootH := rootScreen.Size()
@@ -894,7 +908,7 @@ func (msg *FileMessage) Draw(screen mauview.Screen, _ *UIMessage) {
 			}
 		}
 
-		isPartiallyClipped := screenY < 1 || (screenY+rows) > maxAllowedY || screenX < 0 || (screenX+cols) > rootW
+		isPartiallyClipped := imgScreenY < 1 || (imgScreenY+rows) > maxAllowedY || screenX < 0 || (screenX+cols) > rootW
 
 		if isPartiallyClipped {
 			if msg.mask != nil {
@@ -916,11 +930,11 @@ func (msg *FileMessage) Draw(screen mauview.Screen, _ *UIMessage) {
 		}
 
 		// Apply cell mask
-		if msg.mask == nil || msg.mask.RootScreen != rootScreen || msg.mask.ScreenX != screenX || msg.mask.ScreenY != screenY || msg.mask.Cols != cols || msg.mask.Rows != rows {
+		if msg.mask == nil || msg.mask.RootScreen != rootScreen || msg.mask.ScreenX != screenX || msg.mask.ScreenY != imgScreenY || msg.mask.Cols != cols || msg.mask.Rows != rows {
 			if msg.mask != nil {
 				msg.mask.Clear()
 			}
-			msg.mask = termimg.NewImageMask(screen, 0, 0, cols, rows)
+			msg.mask = termimg.NewImageMask(screen, 0, msg.textHeight, cols, rows)
 		}
 		msg.mask.Apply()
 
@@ -928,14 +942,14 @@ func (msg *FileMessage) Draw(screen mauview.Screen, _ *UIMessage) {
 			line.Draw(screen, 0, y)
 		}
 
-		if screenX != msg.lastDrawnX || screenY != msg.lastDrawnY || cols != msg.lastDrawnW || rows != msg.lastDrawnH || !msg.lastEmitted {
+		if screenX != msg.lastDrawnX || imgScreenY != msg.lastDrawnY || cols != msg.lastDrawnW || rows != msg.lastDrawnH || !msg.lastEmitted {
 			msg.lastDrawnX = screenX
-			msg.lastDrawnY = screenY
+			msg.lastDrawnY = imgScreenY
 			msg.lastDrawnW = cols
 			msg.lastDrawnH = rows
 			msg.lastEmitted = true
 
-			emitOSC1337(rootScreen, screenX, screenY, msg.cachedOSC)
+			emitOSC1337(rootScreen, screenX, imgScreenY, msg.cachedOSC)
 		}
 
 	default:
