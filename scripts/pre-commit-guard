@@ -304,8 +304,11 @@ rule_hooks_executable() {
 
 # ---- R-05: git-commit-gated --------------------------------------------------
 rule_git_commit_gated() {
-  if mise run --quiet git-commit >/dev/null 2>&1; then
-    pass "R-05 git-commit-gated"
+  # Sentinel set by the gated task (`mise run git-commit` -> GIT_COMMIT_GATE=1 git commit).
+  # Do NOT probe by running the task here: nested `git commit` re-enters this hook
+  # (index.lock / recursion) and always fails, permanently blocking all commits.
+  if [ "${GIT_COMMIT_GATE:-0}" = "1" ]; then
+    pass "R-05 git-commit-gated (via mise task)"
     return 0
   fi
 
