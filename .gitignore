@@ -20,3 +20,6 @@ deb/usr
 /gomuks-*
 coverage/
 web/coverage/
+node_modules/
+.agents/
+ORIGINAL_REQUEST.md
