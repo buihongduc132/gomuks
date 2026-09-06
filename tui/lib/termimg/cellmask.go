@@ -88,18 +88,18 @@ func NewImageMask(screen mauview.Screen, x, y, cols, rows int) *ImageMask {
 	}
 }
 
-// Apply locks the terminal screen region so tcell does not overwrite graphic pixels during redraws.
+// Apply marks the image mask as active. Note: We strictly avoid calling tcell.Screen.LockRegion
+// because locking cells prevents tcell from repainting during timeline scrolling, which creates
+// frozen / cached screen regions.
 func (m *ImageMask) Apply() {
-	if m != nil && m.RootScreen != nil && !m.Active && m.Cols > 0 && m.Rows > 0 {
-		m.RootScreen.LockRegion(m.ScreenX, m.ScreenY, m.Cols, m.Rows, true)
+	if m != nil && !m.Active && m.Cols > 0 && m.Rows > 0 {
 		m.Active = true
 	}
 }
 
-// Clear releases the lock on the terminal screen region, allowing normal cell diffing.
+// Clear marks the image mask as inactive.
 func (m *ImageMask) Clear() {
-	if m != nil && m.RootScreen != nil && m.Active && m.Cols > 0 && m.Rows > 0 {
-		m.RootScreen.LockRegion(m.ScreenX, m.ScreenY, m.Cols, m.Rows, false)
+	if m != nil && m.Active {
 		m.Active = false
 	}
 }

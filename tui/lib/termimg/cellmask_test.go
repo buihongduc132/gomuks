@@ -147,19 +147,15 @@ func TestImageMask_Lifecycle(t *testing.T) {
 	if !mask.Active {
 		t.Errorf("expected mask to be active after Apply()")
 	}
-	if mockScreen.lockCallCount != 1 {
-		t.Errorf("expected 1 LockRegion call, got %d", mockScreen.lockCallCount)
-	}
-	if mockScreen.lastLockX != 17 || mockScreen.lastLockY != 32 ||
-		mockScreen.lastLockW != 32 || mockScreen.lastLockH != 16 || !mockScreen.lastLockVal {
-		t.Errorf("unexpected LockRegion parameters: (%d, %d, %d, %d, %v)",
-			mockScreen.lastLockX, mockScreen.lastLockY, mockScreen.lastLockW, mockScreen.lastLockH, mockScreen.lastLockVal)
+	// We explicitly expect 0 LockRegion calls to guarantee tcell repaints during scrolling
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected 0 LockRegion calls to prevent scrolling freeze, got %d", mockScreen.lockCallCount)
 	}
 
 	// 2. Redundant Apply should be a no-op
 	mask.Apply()
-	if mockScreen.lockCallCount != 1 {
-		t.Errorf("expected redundant Apply() to not call LockRegion again, got count=%d", mockScreen.lockCallCount)
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected redundant Apply() to not call LockRegion, got count=%d", mockScreen.lockCallCount)
 	}
 
 	// 3. Clear mask
@@ -167,17 +163,14 @@ func TestImageMask_Lifecycle(t *testing.T) {
 	if mask.Active {
 		t.Errorf("expected mask to be inactive after Clear()")
 	}
-	if mockScreen.lockCallCount != 2 {
-		t.Errorf("expected 2 LockRegion calls, got %d", mockScreen.lockCallCount)
-	}
-	if mockScreen.lastLockVal != false {
-		t.Errorf("expected LockRegion unlock call with lock=false")
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected 0 LockRegion calls, got %d", mockScreen.lockCallCount)
 	}
 
 	// 4. Redundant Clear should be a no-op
 	mask.Clear()
-	if mockScreen.lockCallCount != 2 {
-		t.Errorf("expected redundant Clear() to not call LockRegion again, got count=%d", mockScreen.lockCallCount)
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected redundant Clear() to not call LockRegion, got count=%d", mockScreen.lockCallCount)
 	}
 
 	// 5. Nil safety

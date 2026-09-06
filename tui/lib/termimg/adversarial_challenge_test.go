@@ -41,7 +41,7 @@ func TestAdversarial_ConflictingEnvironmentFlags(t *testing.T) {
 				"TERM_PROGRAM": "WezTerm",
 			},
 			mockPassthrough:  true,
-			expectedProto:    ProtocolITerm2,
+			expectedProto:    ProtocolKitty,
 			expectedWez:      true,
 			expectedITerm:    false,
 			expectedTmux:     true,
@@ -140,7 +140,7 @@ func TestAdversarial_ConflictingEnvironmentFlags(t *testing.T) {
 				"LC_TERMINAL":  "iTerm2",
 			},
 			mockPassthrough:  false,
-			expectedProto:    ProtocolITerm2,
+			expectedProto:    ProtocolKitty,
 			expectedWez:      true,
 			expectedITerm:    true,
 			expectedTmux:     false,
@@ -557,16 +557,16 @@ func TestAdversarial_CellMask_DeepNesting(t *testing.T) {
 	if !mask.Active {
 		t.Errorf("mask should be active")
 	}
-	if mockScreen.lockCallCount != 1 {
-		t.Errorf("expected 1 lock call, got %d", mockScreen.lockCallCount)
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected 0 lock calls to prevent scrolling freeze, got %d", mockScreen.lockCallCount)
 	}
 
 	mask.Clear()
 	if mask.Active {
 		t.Errorf("mask should be inactive")
 	}
-	if mockScreen.lockCallCount != 2 {
-		t.Errorf("expected 2 lock calls, got %d", mockScreen.lockCallCount)
+	if mockScreen.lockCallCount != 0 {
+		t.Errorf("expected 0 lock calls, got %d", mockScreen.lockCallCount)
 	}
 }
 

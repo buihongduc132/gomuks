@@ -26,6 +26,8 @@ func clearEnvs(t *testing.T) {
 	envs := []string{
 		"TERM_PROGRAM",
 		"WEZTERM_PANE",
+		"KITTY_WINDOW_ID",
+		"GHOSTTY_RESOURCES_DIR",
 		"LC_TERMINAL",
 		"ITERM_SESSION_ID",
 		"TMUX",
@@ -45,8 +47,8 @@ func TestDetectTerminal_WezTerm(t *testing.T) {
 		if !cap.IsWezTerm {
 			t.Errorf("expected IsWezTerm to be true")
 		}
-		if cap.Protocol != ProtocolITerm2 {
-			t.Errorf("expected Protocol to be %v, got %v", ProtocolITerm2, cap.Protocol)
+		if cap.Protocol != ProtocolKitty {
+			t.Errorf("expected Protocol to be %v, got %v", ProtocolKitty, cap.Protocol)
 		}
 	})
 
@@ -58,8 +60,23 @@ func TestDetectTerminal_WezTerm(t *testing.T) {
 		if !cap.IsWezTerm {
 			t.Errorf("expected IsWezTerm to be true")
 		}
-		if cap.Protocol != ProtocolITerm2 {
-			t.Errorf("expected Protocol to be %v, got %v", ProtocolITerm2, cap.Protocol)
+		if cap.Protocol != ProtocolKitty {
+			t.Errorf("expected Protocol to be %v, got %v", ProtocolKitty, cap.Protocol)
+		}
+	})
+}
+
+func TestDetectTerminal_Kitty(t *testing.T) {
+	t.Run("via KITTY_WINDOW_ID", func(t *testing.T) {
+		clearEnvs(t)
+		t.Setenv("KITTY_WINDOW_ID", "1")
+
+		cap := DetectTerminal()
+		if !cap.IsKitty {
+			t.Errorf("expected IsKitty to be true")
+		}
+		if cap.Protocol != ProtocolKitty {
+			t.Errorf("expected Protocol to be %v, got %v", ProtocolKitty, cap.Protocol)
 		}
 	})
 }
@@ -127,7 +144,7 @@ func TestDetectTerminal_Tmux(t *testing.T) {
 		}
 	})
 
-	t.Run("tmux with passthrough and WezTerm enables iterm2", func(t *testing.T) {
+	t.Run("tmux with passthrough and WezTerm enables kitty", func(t *testing.T) {
 		clearEnvs(t)
 		t.Setenv("TMUX", "/tmp/tmux-1000/default,1234,0")
 		t.Setenv("TERM_PROGRAM", "WezTerm")
@@ -143,12 +160,12 @@ func TestDetectTerminal_Tmux(t *testing.T) {
 		if !cap.TmuxPassthrough {
 			t.Errorf("expected TmuxPassthrough to be true")
 		}
-		if cap.Protocol != ProtocolITerm2 {
-			t.Errorf("expected Protocol to be %v, got %v", ProtocolITerm2, cap.Protocol)
+		if cap.Protocol != ProtocolKitty {
+			t.Errorf("expected Protocol to be %v, got %v", ProtocolKitty, cap.Protocol)
 		}
 	})
 
-	t.Run("tmux with allow-passthrough 'all' and WezTerm enables iterm2", func(t *testing.T) {
+	t.Run("tmux with allow-passthrough 'all' and WezTerm enables kitty", func(t *testing.T) {
 		clearEnvs(t)
 		t.Setenv("TMUX", "/tmp/tmux-1000/default,1234,0")
 		t.Setenv("TERM_PROGRAM", "WezTerm")
@@ -164,8 +181,8 @@ func TestDetectTerminal_Tmux(t *testing.T) {
 		if !cap.TmuxPassthrough {
 			t.Errorf("expected TmuxPassthrough to be true")
 		}
-		if cap.Protocol != ProtocolITerm2 {
-			t.Errorf("expected Protocol to be %v, got %v", ProtocolITerm2, cap.Protocol)
+		if cap.Protocol != ProtocolKitty {
+			t.Errorf("expected Protocol to be %v, got %v", ProtocolKitty, cap.Protocol)
 		}
 	})
 
@@ -246,13 +263,14 @@ func TestResolveProtocol_Overrides(t *testing.T) {
 		userPref string
 		expected Protocol
 	}{
-		{"empty string resolves auto (WezTerm -> iterm2)", "", ProtocolITerm2},
-		{"auto resolves auto (WezTerm -> iterm2)", "auto", ProtocolITerm2},
+		{"empty string resolves auto (WezTerm -> kitty)", "", ProtocolKitty},
+		{"auto resolves auto (WezTerm -> kitty)", "auto", ProtocolKitty},
+		{"explicit kitty keeps kitty", "kitty", ProtocolKitty},
 		{"explicit halfblocks overrides WezTerm", "halfblocks", ProtocolHalfBlocks},
 		{"explicit disabled overrides WezTerm", "disabled", ProtocolDisabled},
-		{"explicit iterm2 keeps iterm2", "iterm2", ProtocolITerm2},
+		{"explicit iterm2 overrides WezTerm to iterm2", "iterm2", ProtocolITerm2},
 		{"case-insensitive and trimmed", "  HALFBLOCKS  ", ProtocolHalfBlocks},
-		{"unknown pref defaults to detected", "unknown-proto", ProtocolITerm2},
+		{"unknown pref defaults to detected", "unknown-proto", ProtocolKitty},
 	}
 
 	for _, tc := range cases {

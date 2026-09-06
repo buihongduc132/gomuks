@@ -20,14 +20,21 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"os"
 	"runtime"
 	"sync"
 
+	"github.com/disintegration/imaging"
 	"github.com/gdamore/tcell/v2"
 	"go.mau.fi/mauview"
+	_ "go.mau.fi/webp"
+	_ "golang.org/x/image/bmp"
 	"maunium.net/go/mautrix/event"
 	"maunium.net/go/mautrix/id"
 
@@ -75,6 +82,8 @@ type FileMessage struct {
 	cachedWidth int
 	cachedProto termimg.Protocol
 	cachedOSC   []byte
+	cachedKitty []byte
+	imageID     uint32
 	renderCache map[int][]tstring.TString
 
 	mask        *termimg.ImageMask
@@ -395,7 +404,7 @@ func (msg *FileMessage) DownloadPreview(onDone ...func()) {
 		var data []byte
 		var err error
 
-		// 1. Try downloading thumbnail first if present
+		// 1. Try thumbnail first if available
 		if !msg.ThumbnailURL.IsEmpty() {
 			data, err = msg.download(msg.ThumbnailURL, msg.ThumbnailEncrypted)
 			if err == nil && len(data) > 0 {
@@ -408,15 +417,15 @@ func (msg *FileMessage) DownloadPreview(onDone ...func()) {
 			}
 		}
 
-		// 2. Fall back to full media if thumbnail unavailable, failed, or not present (for image messages)
-		if len(data) == 0 && (msg.Type == event.MsgImage || msg.ThumbnailURL.IsEmpty()) && !msg.URL.IsEmpty() {
+		// 2. If thumbnail unavailable or failed, fallback to full media ONLY for event.MsgImage
+		if len(data) == 0 && msg.Type == event.MsgImage && !msg.URL.IsEmpty() {
 			data, err = msg.download(msg.URL, msg.IsEncrypted)
 			if err == nil && len(data) > 0 {
 				_, valErr := termimg.ValidateImageSafety(bytes.NewReader(data))
 				if valErr != nil {
 					debug.Print("Full media failed safety validation:", valErr)
-					err = valErr
 					data = nil
+					err = valErr
 				}
 			}
 		}
@@ -434,6 +443,8 @@ func (msg *FileMessage) DownloadPreview(onDone ...func()) {
 		msg.cachedWidth = 0
 		msg.cachedProto = ""
 		msg.cachedOSC = nil
+		msg.cachedKitty = nil
+		msg.imageID = 0
 		msg.renderCache = nil
 		msg.buffer = nil
 		msg.lastEmitted = false
@@ -527,6 +538,8 @@ func (msg *FileMessage) SetImageData(data []byte) {
 	msg.cachedWidth = 0
 	msg.cachedProto = ""
 	msg.cachedOSC = nil
+	msg.cachedKitty = nil
+	msg.imageID = 0
 	msg.renderCache = nil
 	msg.buffer = nil
 	msg.lastEmitted = false
@@ -623,6 +636,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		msg.cachedWidth = width
 		msg.cachedProto = effectiveProto
 		msg.cachedOSC = nil
+		msg.cachedKitty = nil
+		msg.imageID = 0
 		msg.lastEmitted = false
 		msg.mu.Unlock()
 		return
@@ -636,6 +651,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		msg.imageErr = err
 		msg.cachedProto = effectiveProto
 		msg.cachedOSC = nil
+		msg.cachedKitty = nil
+		msg.imageID = 0
 		msg.lastEmitted = false
 		msg.mu.Unlock()
 
@@ -680,8 +697,49 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 	}
 
 	switch effectiveProto {
+	case termimg.ProtocolKitty:
+		// Tier 1: WezTerm & Kitty via Kitty Graphics Protocol with Unicode Placeholders
+		img, dErr := imaging.Decode(bytes.NewReader(dataCopy), imaging.AutoOrientation(true))
+		if dErr != nil {
+			var stdErr error
+			img, _, stdErr = image.Decode(bytes.NewReader(dataCopy))
+			if stdErr != nil {
+				debug.Print("Failed to decode image for Kitty protocol:", dErr)
+				msg.mu.Lock()
+				msg.imageErr = dErr
+				msg.buffer = []tstring.TString{tstring.NewColorTString("Failed to decode image", tcell.ColorRed)}
+				msg.cachedWidth = width
+				msg.cachedProto = effectiveProto
+				msg.cachedOSC = nil
+				msg.cachedKitty = nil
+				msg.imageID = 0
+				msg.lastEmitted = false
+				msg.mu.Unlock()
+				return
+			}
+		}
+
+		targetPxW := bbox.Cols * 10
+		targetPxH := bbox.Rows * 20
+		resized := imaging.Fit(img, targetPxW, targetPxH, imaging.Lanczos)
+
+		id := termimg.NextKittyImageID()
+		isTmux := termimg.DetectTerminal().IsTmux
+		kittySeq := termimg.FormatKittyTransmit(resized, id, isTmux)
+		placeholder := termimg.CreateKittyPlaceholderBuffer(bbox.Cols, bbox.Rows, id)
+
+		msg.mu.Lock()
+		msg.buffer = placeholder
+		msg.cachedKitty = kittySeq
+		msg.imageID = id
+		msg.cachedWidth = width
+		msg.cachedProto = effectiveProto
+		msg.cachedOSC = nil
+		msg.lastEmitted = false
+		msg.mu.Unlock()
+
 	case termimg.ProtocolITerm2:
-		// Tier 1: WezTerm & iTerm2 via OSC 1337
+		// Tier 2: iTerm2 via OSC 1337
 		downscaled, downErr := termimg.PreDownscaleForPTY(dataCopy, 1920, 1080)
 		if downErr != nil {
 			downscaled = dataCopy
@@ -716,13 +774,15 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		msg.mu.Lock()
 		msg.buffer = placeholder
 		msg.cachedOSC = oscBytes
+		msg.cachedKitty = nil
+		msg.imageID = 0
 		msg.cachedWidth = width
 		msg.cachedProto = effectiveProto
 		msg.lastEmitted = false
 		msg.mu.Unlock()
 
 	default:
-		// Tier 2: Universal TrueColor Half-Blocks
+		// Tier 3: Universal TrueColor Half-Blocks
 		msg.mu.Lock()
 		if msg.renderCache == nil {
 			msg.renderCache = make(map[int][]tstring.TString)
@@ -733,6 +793,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 			msg.cachedWidth = width
 			msg.cachedProto = effectiveProto
 			msg.cachedOSC = nil
+			msg.cachedKitty = nil
+			msg.imageID = 0
 			msg.lastEmitted = false
 			msg.mu.Unlock()
 			return
@@ -750,6 +812,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 			msg.cachedWidth = width
 			msg.cachedProto = effectiveProto
 			msg.cachedOSC = nil
+			msg.cachedKitty = nil
+			msg.imageID = 0
 			msg.lastEmitted = false
 			msg.mu.Unlock()
 			return
@@ -765,6 +829,8 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		msg.cachedWidth = width
 		msg.cachedProto = effectiveProto
 		msg.cachedOSC = nil
+		msg.cachedKitty = nil
+		msg.imageID = 0
 		msg.lastEmitted = false
 		msg.mu.Unlock()
 	}
@@ -784,98 +850,123 @@ func (msg *FileMessage) Draw(screen mauview.Screen, _ *UIMessage) {
 		return
 	}
 
-	if msg.cachedProto != termimg.ProtocolITerm2 || len(msg.cachedOSC) == 0 {
-		// Tier 2: Half-Blocks (or text fallback)
-		if msg.mask != nil {
-			msg.mask.Clear()
-			msg.mask = nil
-		}
-		for y, line := range msg.buffer {
-			line.Draw(screen, 0, y)
-		}
-		return
-	}
-
-	// Tier 1: WezTerm & iTerm2 OSC 1337
 	rootScreen, screenX, screenY := termimg.GetRootScreenAndOffset(screen)
-	if rootScreen == nil {
-		if msg.mask != nil {
-			msg.mask.Clear()
-			msg.mask = nil
+
+	switch msg.cachedProto {
+	case termimg.ProtocolKitty:
+		if len(msg.cachedKitty) > 0 && !msg.lastEmitted {
+			msg.lastEmitted = true
+			emitKitty(rootScreen, msg.cachedKitty)
 		}
 		for y, line := range msg.buffer {
 			line.Draw(screen, 0, y)
 		}
 		return
-	}
 
-	rows := len(msg.buffer)
-	cols := 0
-	if rows > 0 {
-		cols = len(msg.buffer[0])
-	}
-	if cols == 0 || rows == 0 {
-		return
-	}
-
-	// Determine visible viewport height
-	rootW, rootH := rootScreen.Size()
-	maxAllowedY := rootH - 1
-	if proxy, ok := screen.(*mauview.ProxyScreen); ok && proxy.Parent != nil {
-		_, parentH := proxy.Parent.Size()
-		if parentH > 0 && 1+parentH < maxAllowedY {
-			maxAllowedY = 1 + parentH
-		}
-	}
-
-	// Check viewport boundary safety (screenY < 1 || screenY+rows > maxAllowedY || screenX < 0 || screenX+cols > rootW)
-	isPartiallyClipped := screenY < 1 || (screenY+rows) > maxAllowedY || screenX < 0 || (screenX+cols) > rootW
-
-	if isPartiallyClipped {
-		// Suppress OSC 1337 and release cell mask to avoid splattering over Topic Bar or Status Bar
-		if msg.mask != nil {
-			msg.mask.Clear()
-			msg.mask = nil
-		}
-		msg.lastEmitted = false
-
-		// Fall back to half-blocks if available in cache, otherwise placeholder buffer
-		if cachedHalfblocks, ok := msg.renderCache[cols]; ok && len(cachedHalfblocks) == rows {
-			for y, line := range cachedHalfblocks {
-				line.Draw(screen, 0, y)
+	case termimg.ProtocolITerm2:
+		if rootScreen == nil || len(msg.cachedOSC) == 0 {
+			if msg.mask != nil {
+				msg.mask.Clear()
+				msg.mask = nil
 			}
-		} else {
 			for y, line := range msg.buffer {
 				line.Draw(screen, 0, y)
 			}
+			return
 		}
-		return
-	}
 
-	// Apply cell mask
-	if msg.mask == nil || msg.mask.RootScreen != rootScreen || msg.mask.ScreenX != screenX || msg.mask.ScreenY != screenY || msg.mask.Cols != cols || msg.mask.Rows != rows {
+		rows := len(msg.buffer)
+		cols := 0
+		if rows > 0 {
+			cols = len(msg.buffer[0])
+		}
+		if cols == 0 || rows == 0 {
+			return
+		}
+
+		// Determine visible viewport height
+		rootW, rootH := rootScreen.Size()
+		maxAllowedY := rootH - 1
+		if proxy, ok := screen.(*mauview.ProxyScreen); ok && proxy.Parent != nil {
+			_, parentH := proxy.Parent.Size()
+			if parentH > 0 && 1+parentH < maxAllowedY {
+				maxAllowedY = 1 + parentH
+			}
+		}
+
+		isPartiallyClipped := screenY < 1 || (screenY+rows) > maxAllowedY || screenX < 0 || (screenX+cols) > rootW
+
+		if isPartiallyClipped {
+			if msg.mask != nil {
+				msg.mask.Clear()
+				msg.mask = nil
+			}
+			msg.lastEmitted = false
+
+			if cachedHalfblocks, ok := msg.renderCache[cols]; ok && len(cachedHalfblocks) == rows {
+				for y, line := range cachedHalfblocks {
+					line.Draw(screen, 0, y)
+				}
+			} else {
+				for y, line := range msg.buffer {
+					line.Draw(screen, 0, y)
+				}
+			}
+			return
+		}
+
+		// Apply cell mask
+		if msg.mask == nil || msg.mask.RootScreen != rootScreen || msg.mask.ScreenX != screenX || msg.mask.ScreenY != screenY || msg.mask.Cols != cols || msg.mask.Rows != rows {
+			if msg.mask != nil {
+				msg.mask.Clear()
+			}
+			msg.mask = termimg.NewImageMask(screen, 0, 0, cols, rows)
+		}
+		msg.mask.Apply()
+
+		for y, line := range msg.buffer {
+			line.Draw(screen, 0, y)
+		}
+
+		if screenX != msg.lastDrawnX || screenY != msg.lastDrawnY || cols != msg.lastDrawnW || rows != msg.lastDrawnH || !msg.lastEmitted {
+			msg.lastDrawnX = screenX
+			msg.lastDrawnY = screenY
+			msg.lastDrawnW = cols
+			msg.lastDrawnH = rows
+			msg.lastEmitted = true
+
+			emitOSC1337(rootScreen, screenX, screenY, msg.cachedOSC)
+		}
+
+	default:
 		if msg.mask != nil {
 			msg.mask.Clear()
+			msg.mask = nil
 		}
-		msg.mask = termimg.NewImageMask(screen, 0, 0, cols, rows)
+		for y, line := range msg.buffer {
+			line.Draw(screen, 0, y)
+		}
 	}
-	msg.mask.Apply()
+}
 
-	// Fill placeholder cells in mauview logical screen
-	for y, line := range msg.buffer {
-		line.Draw(screen, 0, y)
+func emitKitty(rootScreen tcell.Screen, seq []byte) {
+	if len(seq) == 0 {
+		return
 	}
-
-	// Emit OSC 1337 escape sequence only when position or dimensions change
-	if screenX != msg.lastDrawnX || screenY != msg.lastDrawnY || cols != msg.lastDrawnW || rows != msg.lastDrawnH || !msg.lastEmitted {
-		msg.lastDrawnX = screenX
-		msg.lastDrawnY = screenY
-		msg.lastDrawnW = cols
-		msg.lastDrawnH = rows
-		msg.lastEmitted = true
-
-		emitOSC1337(rootScreen, screenX, screenY, msg.cachedOSC)
+	if oscOutputWriter != nil {
+		_, _ = oscOutputWriter.Write(seq)
+		return
 	}
+	if rootScreen != nil {
+		if tty, ok := rootScreen.Tty(); ok && tty != nil {
+			_, _ = tty.Write(seq)
+			return
+		}
+		if _, isSim := rootScreen.(tcell.SimulationScreen); isSim {
+			return
+		}
+	}
+	_, _ = os.Stdout.Write(seq)
 }
 
 func emitOSC1337(rootScreen tcell.Screen, x, y int, oscSeq []byte) {

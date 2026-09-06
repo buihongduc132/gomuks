@@ -29,6 +29,7 @@ type Protocol string
 
 const (
 	ProtocolAuto       Protocol = "auto"
+	ProtocolKitty      Protocol = "kitty"
 	ProtocolITerm2     Protocol = "iterm2"
 	ProtocolHalfBlocks Protocol = "halfblocks"
 	ProtocolDisabled   Protocol = "disabled"
@@ -38,6 +39,7 @@ const (
 type TerminalCapability struct {
 	Protocol        Protocol
 	IsWezTerm       bool
+	IsKitty         bool
 	IsITerm2        bool
 	IsTmux          bool
 	IsScreen        bool
@@ -77,12 +79,15 @@ func IsTmuxPassthroughSupported() bool {
 func DetectTerminal() TerminalCapability {
 	termProg := os.Getenv("TERM_PROGRAM")
 	wezPane := os.Getenv("WEZTERM_PANE")
+	kittyWindowID := os.Getenv("KITTY_WINDOW_ID")
+	ghosttyRes := os.Getenv("GHOSTTY_RESOURCES_DIR")
 	lcTerm := os.Getenv("LC_TERMINAL")
 	itermSession := os.Getenv("ITERM_SESSION_ID")
 	tmux := os.Getenv("TMUX")
 	sty := os.Getenv("STY")
 
 	isWezTerm := termProg == "WezTerm" || wezPane != ""
+	isKitty := kittyWindowID != "" || ghosttyRes != "" || termProg == "ghostty" || termProg == "kitty"
 	isITerm2 := termProg == "iTerm.app" || lcTerm == "iTerm2" || itermSession != ""
 	isTmux := tmux != ""
 	isScreen := sty != ""
@@ -94,15 +99,19 @@ func DetectTerminal() TerminalCapability {
 
 	var proto Protocol
 	if isScreen {
-		// GNU Screen does not reliably support OSC 1337 passthrough
+		// GNU Screen does not reliably support graphics passthrough
 		proto = ProtocolHalfBlocks
 	} else if isTmux {
-		if tmuxPassthrough && (isWezTerm || isITerm2) {
+		if tmuxPassthrough && (isWezTerm || isKitty) {
+			proto = ProtocolKitty
+		} else if tmuxPassthrough && isITerm2 {
 			proto = ProtocolITerm2
 		} else {
 			proto = ProtocolHalfBlocks
 		}
-	} else if isWezTerm || isITerm2 {
+	} else if isWezTerm || isKitty {
+		proto = ProtocolKitty
+	} else if isITerm2 {
 		proto = ProtocolITerm2
 	} else {
 		proto = ProtocolHalfBlocks
@@ -111,6 +120,7 @@ func DetectTerminal() TerminalCapability {
 	return TerminalCapability{
 		Protocol:        proto,
 		IsWezTerm:       isWezTerm,
+		IsKitty:         isKitty,
 		IsITerm2:        isITerm2,
 		IsTmux:          isTmux,
 		IsScreen:        isScreen,
@@ -122,6 +132,8 @@ func DetectTerminal() TerminalCapability {
 func ResolveProtocol(userPref string) Protocol {
 	pref := strings.ToLower(strings.TrimSpace(userPref))
 	switch Protocol(pref) {
+	case ProtocolKitty:
+		return ProtocolKitty
 	case ProtocolITerm2:
 		return ProtocolITerm2
 	case ProtocolHalfBlocks:
