@@ -128,7 +128,15 @@ func parseTextFormatCommand(text string) (event.MessageEventContent, bool) {
 		return format.TextToContent(text), true
 	} else if strings.HasPrefix(text, "/html ") {
 		text = strings.TrimPrefix(text, "/html ")
-		return format.HTMLToContent(strings.Replace(text, "\n", "<br>", -1)), true
+		html := strings.Replace(text, "\n", "<br>", -1)
+		_, mentions := format.HTMLToMarkdownFull(nil, html)
+		return event.MessageEventContent{
+			MsgType:       event.MsgText,
+			Body:          html,
+			Format:        event.FormatHTML,
+			FormattedBody: html,
+			Mentions:      mentions,
+		}, true
 	} else if strings.HasPrefix(text, "/htmlmd ") {
 		text = strings.TrimPrefix(text, "/htmlmd ")
 		return format.RenderMarkdownCustom(text, defaultWithHTML), true
