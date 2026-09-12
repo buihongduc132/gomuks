@@ -1,0 +1,106 @@
+status: ongoing
+threads:
+  - id: OT1
+    topic: TUI Multi-select behavior
+    raised_in: turn2
+    status: open
+    note: |
+      Need to decide if the user wants any specific behavior for the multi-select modal (e.g. how it behaves on space/enter) or if the default described in turn2 is fine.
+
+  - id: OT2
+    topic: Panic on Nil Pointer Dereference
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 5
+    note: Calling `.Body` directly on `view.replying.GetMautrixContent().AsMessage()` crashes the TUI. Requires defensive nil guards.
+
+  - id: OT3
+    topic: Unicode / Multi-Byte Slicing Panics
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 5
+    note: Slicing `body[:30]` on strings < 30 bytes panics; UTF-8 runes get corrupted. Must use `runewidth.Truncate`.
+
+  - id: OT4
+    topic: Destructive Buffer Replacement
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 5
+    note: `SetText` wipes existing draft text. Must splice tags at `cursorOffset` instead.
+
+  - id: OT5
+    topic: Fuzzy Filter Mutation Desynchronizes Selection
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 5
+    note: Selection by UI index breaks on filter update. Must track by `UserID` and show persistent summary.
+
+  - id: OT6
+    topic: Lack of Visual Checkbox Affordance
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 5
+    note: No visual feedback for toggled items. Prefix lines with `[x]` / `[ ]`.
+
+  - id: OT7
+    topic: Space Key Conflict with Search Input
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: Space toggling conflicts with typing spaces in query. Use `Tab` or `Ctrl+Space`.
+
+  - id: OT8
+    topic: Unescaped Newlines Corrupting Status Bar
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: Newlines break 1-row layout. Normalize whitespace.
+
+  - id: OT9
+    topic: Matrix Spec Reply Fallback Quote Prefix Bloat
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: Nested replies show prior quote instead of actual message. Strip `> ` blocks.
+
+  - id: OT10
+    topic: Main-Thread Freeze in Large Rooms
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: `GetMembers` and fuzzy match on 50k+ freezes TUI. Limit candidates.
+
+  - id: OT11
+    topic: Mentions Parsing (MSC3952)
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: Tagging display names won't trigger notifications. Must populate `m.mentions.user_ids`.
+
+  - id: OT12
+    topic: Focus Loss on Modal Close
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 4
+    note: Must call `view.input.Focus()` on modal confirm/cancel.
+
+  - id: OT13
+    topic: Enter Key Semantic Ambiguity
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 3
+    note: Enter on empty selection should submit highlighted item.
+
+  - id: OT14
+    topic: Double `@` Symbol
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 3
+    note: Detect inline `@` trigger to avoid `@@user`.
+
+  - id: OT15
+    topic: Redacted Events and Media Attachments
+    raised_in: turn2a-gotcha
+    status: open
+    severity: 3
+    note: Provide `MsgType` fallbacks (`[Image]`, `[Redacted]`) instead of empty string.

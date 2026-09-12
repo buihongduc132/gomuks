@@ -338,6 +338,9 @@ func parseKeybindings(input map[string]string) (output map[Keybind]string) {
 			Ch:  ch,
 		}
 		output[parsedShortcut] = action
+		if ch != 0 && key != tcell.KeyRune {
+			output[Keybind{Mod: mod, Key: key, Ch: 0}] = action
+		}
 	}
 	return
 }

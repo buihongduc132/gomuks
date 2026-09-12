@@ -155,12 +155,15 @@ func (view *RoomView) GetInputText() string {
 }
 
 func (view *RoomView) Focus() {
-	view.input.Focus()
+	if view != nil && view.input != nil {
+		view.input.Focus()
+	}
 }
 
 func (view *RoomView) Blur() {
-	view.StopSelecting()
-	view.input.Blur()
+	if view != nil && view.input != nil {
+		view.input.Blur()
+	}
 }
 
 type SelectReason string
@@ -239,22 +242,35 @@ func (view *RoomView) SetStatusNotification(msg string, duration time.Duration) 
 }
 
 func (view *RoomView) GetStatus() string {
+	if view == nil {
+		return ""
+	}
+
 	var buf strings.Builder
 
-	if view.tempStatus != "" {
+	if tempStatus := view.tempStatus; tempStatus != "" {
 		if time.Now().Before(view.tempStatusExpiry) {
-			buf.WriteString(view.tempStatus)
+			buf.WriteString(tempStatus)
 			buf.WriteString(" - ")
 		} else {
 			view.tempStatus = ""
 		}
 	}
 
-	if view.editing != nil {
+	if editing := view.editing; editing != nil {
 		buf.WriteString("Editing message - ")
-	} else if view.replying != nil {
+	} else if replying := view.replying; replying != nil {
 		buf.WriteString("Replying to ")
-		buf.WriteString(string(view.replying.Sender))
+		if replying.Sender != "" {
+			buf.WriteString(string(replying.Sender))
+		} else {
+			buf.WriteString("message")
+		}
+		if snippet := FormatReplySnippet(replying, DefaultReplySnippetMaxCols); snippet != "" {
+			buf.WriteString(`: "`)
+			buf.WriteString(snippet)
+			buf.WriteString(`"`)
+		}
 		buf.WriteString(" - ")
 	} else if view.selecting {
 		buf.WriteString("Selecting message to ")
@@ -262,30 +278,33 @@ func (view *RoomView) GetStatus() string {
 		buf.WriteString(" - ")
 	}
 
-	if len(view.completions.list) > 0 {
-		if view.completions.textCache != view.input.GetText() || view.completions.time.Add(10*time.Second).Before(time.Now()) {
+	if list := view.completions.list; len(list) > 0 {
+		input := view.input
+		if input == nil || view.completions.textCache != input.GetText() || view.completions.time.Add(10*time.Second).Before(time.Now()) {
 			view.completions.list = []string{}
 		} else {
-			buf.WriteString(strings.Join(view.completions.list, ", "))
+			buf.WriteString(strings.Join(list, ", "))
 			buf.WriteString(" - ")
 		}
 	}
 
-	typing := view.Room.Typing.Current()
-	if len(typing) == 1 {
-		buf.WriteString("Typing: " + string(typing[0]))
-		buf.WriteString(" - ")
-	} else if len(typing) > 1 {
-		buf.WriteString("Typing: ")
-		for i, userID := range typing {
-			if i == len(typing)-1 {
-				buf.WriteString(" and ")
-			} else if i > 0 {
-				buf.WriteString(", ")
+	if room := view.Room; room != nil {
+		typing := room.Typing.Current()
+		if len(typing) == 1 {
+			buf.WriteString("Typing: " + string(typing[0]))
+			buf.WriteString(" - ")
+		} else if len(typing) > 1 {
+			buf.WriteString("Typing: ")
+			for i, userID := range typing {
+				if i == len(typing)-1 {
+					buf.WriteString(" and ")
+				} else if i > 0 {
+					buf.WriteString(", ")
+				}
+				buf.WriteString(string(userID))
 			}
-			buf.WriteString(string(userID))
+			buf.WriteString(" - ")
 		}
-		buf.WriteString(" - ")
 	}
 
 	return strings.TrimSuffix(buf.String(), " - ")
@@ -361,10 +380,19 @@ func (view *RoomView) ClearAllContext() {
 	view.SetEditing(nil)
 	view.StopSelecting()
 	view.replying = nil
-	view.input.Focus()
+	if view.input != nil {
+		view.input.Focus()
+	}
 }
 
 func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
+	if view == nil || view.input == nil {
+		return false
+	}
+	if view.config == nil {
+		return view.input.OnKeyEvent(event)
+	}
+
 	msgView := view.MessageView()
 	kb := config.Keybind{
 		Key: event.Key(),
@@ -388,7 +416,12 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 		return true
 	}
 
-	switch view.config.Keybindings.Room[kb] {
+	action := view.config.Keybindings.Room[kb]
+	if action == "" && kb.Ch != 0 {
+		action = view.config.Keybindings.Room[config.Keybind{Key: kb.Key, Mod: kb.Mod}]
+	}
+
+	switch action {
 	case "clear":
 		view.ClearAllContext()
 		return true
@@ -404,6 +437,9 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 	case "reply":
 		view.StartSelecting(SelectReply, "")
 		return true
+	case "tag_user":
+		view.OpenUserTagModal()
+		return true
 	case "react":
 		view.StartSelecting(SelectReact, "")
 		return true
@@ -418,6 +454,20 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 		return true
 	}
 	return view.input.OnKeyEvent(event)
+}
+
+// OpenUserTagModal opens the multi-select user tagging modal for the current room.
+// It safely extracts cached room members, instantiates NewUserTagModal, and on confirmation
+// injects the selected tags into the input composer at the cursor position.
+func (view *RoomView) OpenUserTagModal() {
+	if view == nil || view.parent == nil || view.Room == nil || view.input == nil {
+		return
+	}
+	members := view.Room.GetMembers()
+	modal := NewUserTagModal(view.parent, members, func(tags []string) {
+		InjectTagsIntoComposer(view.input, tags)
+	})
+	view.parent.ShowModal(modal)
 }
 
 func (view *RoomView) OnPasteEvent(event mauview.PasteEvent) bool {
@@ -765,8 +815,8 @@ func (view *RoomView) SendReaction(eventID id.EventID, reaction string) {
 func (view *RoomView) SendMessage(msgtype event.MessageType, text string) {
 	defer debug.Recover()
 	var relatesTo *event.RelatesTo
-	if view.replying != nil {
-		relatesTo = (&event.RelatesTo{}).SetReplyTo(view.replying.ID)
+	if replying := view.replying; replying != nil {
+		relatesTo = (&event.RelatesTo{}).SetReplyTo(replying.ID)
 		view.replying = nil
 	}
 	err := view.parent.matrix.SendMessage(context.TODO(), &jsoncmd.SendMessageParams{

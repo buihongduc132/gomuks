@@ -47,6 +47,7 @@ room:
     'PageUp': scroll_up
     'PageDown': scroll_down
     'Ctrl+r': reply
+    'Ctrl+t': tag_user
     'Alt+r': react
     'Alt+Delete': redact
     'Alt+c': copy
