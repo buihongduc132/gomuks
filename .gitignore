@@ -23,3 +23,7 @@ web/coverage/
 node_modules/
 .agents/
 ORIGINAL_REQUEST.md
+
+# tui/lib is first-party source, not a vendored lib dir
+# (global gitignore has a bare "lib/" pattern that matches it)
+!tui/lib/
