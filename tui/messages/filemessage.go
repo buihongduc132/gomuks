@@ -102,6 +102,7 @@ type FileMessage struct {
 	downloadDone       chan struct{}
 	pendingCallbacks   []func()
 	callbackRunnerGID  int64
+	previewRequested   bool
 
 	downloadFn         func(uri id.ContentURI, encrypted bool) ([]byte, error)
 	ActiveRoomChecker  func() bool
@@ -222,6 +223,7 @@ func (msg *FileMessage) Clone() MessageRenderer {
 		ActiveRoomChecker:  msg.ActiveRoomChecker,
 		Redraw:             msg.Redraw,
 		onDownloadComplete: msg.onDownloadComplete,
+		previewRequested:   msg.previewRequested,
 	}
 }
 
@@ -576,6 +578,14 @@ func (msg *FileMessage) SetOnDownloadComplete(fn func()) {
 	msg.mu.Lock()
 	defer msg.mu.Unlock()
 	msg.onDownloadComplete = fn
+}
+
+// RequestPreview records an explicit preview request and calls DownloadPreview.
+func (msg *FileMessage) RequestPreview() {
+	msg.mu.Lock()
+	msg.previewRequested = true
+	msg.mu.Unlock()
+	msg.DownloadPreview()
 }
 
 func (msg *FileMessage) ThumbnailPath() string {

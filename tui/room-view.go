@@ -170,6 +170,7 @@ type SelectReason string
 
 const (
 	SelectReply    SelectReason = "reply to"
+	SelectImage    SelectReason = "load image"
 	SelectReact    SelectReason = "react to"
 	SelectRedact   SelectReason = "redact"
 	SelectEdit     SelectReason = "edit"
@@ -224,13 +225,19 @@ func (view *RoomView) OnSelect(message *messages.UIMessage) {
 		//	}
 		//	go view.Download(msg.URL, msg.IsEncrypted, path, view.selectReason == SelectOpen)
 		//}
+	case SelectImage:
+		if fm, ok := message.Renderer.(*messages.FileMessage); ok {
+			fm.RequestPreview()
+		}
 	case SelectCopy:
 		go view.CopyToClipboard(message.Renderer.PlainText(), view.selectContent)
 	}
-	view.selecting = false
-	view.selectContent = ""
-	view.MessageView().SetSelected(nil)
-	view.input.Focus()
+	if view.selectReason != SelectImage {
+		view.selecting = false
+		view.selectContent = ""
+		view.MessageView().SetSelected(nil)
+		view.input.Focus()
+	}
 }
 
 func (view *RoomView) SetStatusNotification(msg string, duration time.Duration) {
@@ -436,6 +443,9 @@ func (view *RoomView) OnKeyEvent(event mauview.KeyEvent) bool {
 		return true
 	case "reply":
 		view.StartSelecting(SelectReply, "")
+		return true
+	case "load_image":
+		view.StartSelecting(SelectImage, "")
 		return true
 	case "tag_user":
 		view.OpenUserTagModal()
