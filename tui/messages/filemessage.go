@@ -733,8 +733,15 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 			}
 		}
 
-		targetPxW := bbox.Cols * 10
-		targetPxH := bbox.Rows * 20
+		var targetPxW, targetPxH int
+		if wPx, hPx, ok := termimg.CellSize(); ok {
+			targetPxW = bbox.Cols * wPx
+			targetPxH = bbox.Rows * hPx
+		} else {
+			baseW := 16
+			targetPxW = bbox.Cols * baseW
+			targetPxH = int(float64(bbox.Rows*baseW) / termimg.DefaultCellAspectRatio)
+		}
 		resized := imaging.Fit(img, targetPxW, targetPxH, imaging.Lanczos)
 
 		id := termimg.NextKittyImageID()

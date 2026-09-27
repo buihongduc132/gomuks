@@ -35,12 +35,16 @@ type BoundingBox struct {
 	Rows int
 }
 
+// CellRatio is the package-level configurable cell aspect ratio (default 0.5).
+var CellRatio = DefaultCellAspectRatio
+
 // CalculateClampedDimensions computes proportional 2D character cell dimensions for an image.
-// Terminal font cells typically have ~1:2 width-to-height aspect ratio.
-// For half-block cells (2 vertical sub-pixels per cell), effective cell aspect ratio is (W / H) * 2.0.
+// Terminal font cells typically have ~1:2 width-to-height aspect ratio (default 0.5).
+// An optional cell ratio (width / height) can be supplied; if omitted or <= 0, it defaults to CellRatio.
+// For half-block cells (2 vertical sub-pixels per cell), effective cell aspect ratio is (W / H) / cellRatio.
 // Dimensions are clamped within [min(availableCols, maxCols), maxRows], maintaining at least MinHeight rows
 // (unless nativeRows < MinHeight).
-func CalculateClampedDimensions(imgW, imgH, availableCols, maxCols, maxRows int) BoundingBox {
+func CalculateClampedDimensions(imgW, imgH, availableCols, maxCols, maxRows int, cellRatio ...float64) BoundingBox {
 	if imgW <= 0 || imgH <= 0 {
 		return BoundingBox{Cols: 0, Rows: 0}
 	}
@@ -63,7 +67,11 @@ func CalculateClampedDimensions(imgW, imgH, availableCols, maxCols, maxRows int)
 		limitCols = 1
 	}
 
-	cellAR := (float64(imgW) / float64(imgH)) * 2.0
+	ratio := CellRatio
+	if len(cellRatio) > 0 && cellRatio[0] > 0 {
+		ratio = cellRatio[0]
+	}
+	cellAR := (float64(imgW) / float64(imgH)) / ratio
 
 	// Character cell dimensions at 1:1 scale (1 column per pixel, 2 pixels per row)
 	nativeCols := imgW
