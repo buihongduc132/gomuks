@@ -89,3 +89,17 @@ _(populated from `flow/findings/2026-09-05-terminal_image_support/2026-09-05-ope
 - `OT6`: `filemessage-concurrency-data-race` (addressed via `dl-thread-safety`)
 - `OT7`: `ssh-env-scrubbing-config-override` (addressed via `proto-picker-config`)
 - `OT8`: `homeserver-thumbnail-fetch` (addressed via `dl-thumbnail-api`)
+
+## On-Demand Image Loading (Lane C1) & R-01 Resolution
+
+### On-Demand Gating & Select Flow (G1, G2, G3)
+- [x] `G1-lazy-parse` (`70ae8af0`): Media previews are no longer fetched automatically during `ParseMessage`. Image messages remain in unrequested state until user interaction.
+- [x] `G2-ondemand-select` (`a48d56d2`): Wires `Ctrl+i` keybinding to `load_image` action in `RoomView`. Triggers `SelectImage` mode allowing visual navigation to message, calling `RequestPreview()` on the targeted `FileMessage`.
+- [x] `G3-cellsize` (`4df6d4aa`, `83cfeeb1`): Queries terminal pixel dimensions via `TIOCGWINSZ` across stdout/stderr/stdin/`/dev/tty` for precise bounding box calculation instead of hardcoding 10x20 cell size. Un-ignores `tui/lib/` in repo `.gitignore`.
+- [x] `G2-verification` (`5a51d80d`): Consumes `previewRequested` state via `IsPreviewRequested()` in `room-view.go` to gate requests and notify status. Adds comprehensive test coverage in `tui/messages/filemessage_ondemand_test.go` and `tui/room_view_ondemand_test.go`.
+
+### R-01 User Ruling (Reading A)
+- **Problem**: Commit `43b541b2` added text caption prepending into image buffers, breaking total height bounds (>16), placeholder rows, and viewport clipping parity (4 failing tests in `tui/messages`).
+- **User Ruling**: **Reading A ruled** by user. Dispatched via `/goal finish… — make go test -count=1 ./tui + ./tui/lib/termimg/... 0-fail + go build ./cmd/gomuks-terminal green`.
+- **Resolution**: Tests are correct: total rendered height must stay ≤ `DefaultMaxHeight` (16). Commit `37084f55` (`fix(tui): restore image buffer rendering and viewport clipping parity`) removed invalid caption prepending. All 69 messages tests pass with 0 failures, all 195 P2P tests pass, `check-lane.sh` exits 0 with `ALL CHECKS GREEN`.
+
