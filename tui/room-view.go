@@ -227,7 +227,10 @@ func (view *RoomView) OnSelect(message *messages.UIMessage) {
 		//}
 	case SelectImage:
 		if fm, ok := message.Renderer.(*messages.FileMessage); ok {
-			fm.RequestPreview()
+			if !fm.IsPreviewRequested() {
+				fm.RequestPreview()
+				view.SetStatusNotification("Loading image preview...", 2*time.Second)
+			}
 		}
 	case SelectCopy:
 		go view.CopyToClipboard(message.Renderer.PlainText(), view.selectContent)

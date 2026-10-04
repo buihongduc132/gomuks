@@ -536,6 +536,7 @@ func (msg *FileMessage) SetImageData(data []byte) {
 	} else {
 		msg.imageData = data
 		msg.imageErr = nil
+		msg.previewRequested = true
 	}
 	msg.cachedWidth = 0
 	msg.cachedProto = ""
@@ -584,6 +585,13 @@ func (msg *FileMessage) RequestPreview() {
 	msg.previewRequested = true
 	msg.mu.Unlock()
 	msg.DownloadPreview()
+}
+
+// IsPreviewRequested returns true if an on-demand preview was requested for this file message.
+func (msg *FileMessage) IsPreviewRequested() bool {
+	msg.mu.RLock()
+	defer msg.mu.RUnlock()
+	return msg.previewRequested
 }
 
 func (msg *FileMessage) ThumbnailPath() string {
