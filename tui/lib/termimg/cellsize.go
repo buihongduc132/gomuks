@@ -8,51 +8,8 @@
 
 package termimg
 
-import (
-	"os"
-
-	"golang.org/x/sys/unix"
-)
-
 // DefaultCellAspectRatio is the standard fallback ratio (width / height = 0.5, i.e. 1:2).
 const DefaultCellAspectRatio = 0.5
-
-// CellSize queries the terminal via the TIOCGWINSZ ioctl for the pixel dimensions of a single cell.
-// It checks stdout, stderr, stdin, and /dev/tty.
-// If the terminal reports ws_xpixel or ws_ypixel as 0, or if an error occurs,
-// ok is false and (0, 0, false) is returned.
-// It does NOT silently return 10x20.
-func CellSize() (wPx, hPx int, ok bool) {
-	for _, f := range []*os.File{os.Stdout, os.Stderr, os.Stdin} {
-		if f == nil {
-			continue
-		}
-		if ws, err := unix.IoctlGetWinsize(int(f.Fd()), unix.TIOCGWINSZ); err == nil && ws != nil {
-			if ws.Col > 0 && ws.Row > 0 && ws.Xpixel > 0 && ws.Ypixel > 0 {
-				w := int(ws.Xpixel / ws.Col)
-				h := int(ws.Ypixel / ws.Row)
-				if w > 0 && h > 0 {
-					return w, h, true
-				}
-			}
-		}
-	}
-
-	if tty, err := os.Open("/dev/tty"); err == nil {
-		defer tty.Close()
-		if ws, err := unix.IoctlGetWinsize(int(tty.Fd()), unix.TIOCGWINSZ); err == nil && ws != nil {
-			if ws.Col > 0 && ws.Row > 0 && ws.Xpixel > 0 && ws.Ypixel > 0 {
-				w := int(ws.Xpixel / ws.Col)
-				h := int(ws.Ypixel / ws.Row)
-				if w > 0 && h > 0 {
-					return w, h, true
-				}
-			}
-		}
-	}
-
-	return 0, 0, false
-}
 
 // CellAspectRatio returns the aspect ratio (width / height) of a terminal cell.
 // If CellSize() succeeds, it returns float64(wPx) / float64(hPx).

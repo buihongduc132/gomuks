@@ -101,5 +101,5 @@ _(populated from `flow/findings/2026-09-05-terminal_image_support/2026-09-05-ope
 ### R-01 User Ruling (Reading A)
 - **Problem**: Commit `43b541b2` added text caption prepending into image buffers, breaking total height bounds (>16), placeholder rows, and viewport clipping parity (4 failing tests in `tui/messages`).
 - **User Ruling**: **Reading A ruled** by user. Dispatched via `/goal finish… — make go test -count=1 ./tui + ./tui/lib/termimg/... 0-fail + go build ./cmd/gomuks-terminal green`.
-- **Resolution**: Tests are correct: total rendered height must stay ≤ `DefaultMaxHeight` (16). Commit `37084f55` (`fix(tui): restore image buffer rendering and viewport clipping parity`) removed invalid caption prepending. All 69 messages tests pass with 0 failures, all 195 P2P tests pass, `check-lane.sh` exits 0 with `ALL CHECKS GREEN`.
+- **Resolution**: Tests are correct: total rendered height must stay ≤ `DefaultMaxHeight` (16). Commit `37084f55` (`fix(tui): restore image buffer rendering and viewport clipping parity`) removed invalid caption prepending. All 73 messages tests pass with 0 failures, all 195 P2P tests pass, `check-lane.sh` exits 0 with `ALL CHECKS GREEN`.
 

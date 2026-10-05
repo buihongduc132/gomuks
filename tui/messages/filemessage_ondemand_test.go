@@ -18,6 +18,7 @@ package messages
 
 import (
 	"encoding/json"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -192,5 +193,67 @@ func TestFileMessage_OnDemand_ConcurrentRequests(t *testing.T) {
 	}
 	if downloadCount.Load() != 1 {
 		t.Fatalf("expected exactly 1 download execution across %d concurrent callers, got %d", numGoroutines, downloadCount.Load())
+	}
+}
+
+func TestParseEvent_DoesNotEagerlyDownloadMedia(t *testing.T) {
+	evt, _ := makeTestImageEvent()
+	prefs := &config.UserPreferences{
+		DisableDownloads: false,
+		DisableImages:    false,
+	}
+
+	parsedMsg := ParseEvent(nil, prefs, nil, evt)
+	if parsedMsg == nil {
+		t.Fatalf("expected non-nil parsed message")
+	}
+	fileMsg, ok := parsedMsg.Renderer.(*FileMessage)
+	if !ok {
+		t.Fatalf("expected *FileMessage renderer")
+	}
+
+	// G1 assertion: ParseEvent MUST NOT request or trigger download eagerly
+	if fileMsg.IsPreviewRequested() {
+		t.Fatalf("ParseEvent must not eagerly set previewRequested=true")
+	}
+	if fileMsg.IsDownloading() {
+		t.Fatalf("ParseEvent must not eagerly start downloading media")
+	}
+	if len(fileMsg.ImageData()) != 0 {
+		t.Fatalf("ParseEvent must not populate imageData eagerly")
+	}
+}
+
+func TestFileMessage_OnDemand_RetryAfterError(t *testing.T) {
+	evt, content := makeTestImageEvent()
+	uiMsg := NewFileMessage(nil, nil, evt, content)
+	fileMsg := uiMsg.Renderer.(*FileMessage)
+
+	// Step 1: Simulate network failure
+	callCount := 0
+	fileMsg.SetDownloadFunc(func(uri id.ContentURI, encrypted bool) ([]byte, error) {
+		callCount++
+		if callCount == 1 {
+			return nil, fmt.Errorf("transient network failure")
+		}
+		return createTestPNGBytes(50, 50), nil
+	})
+
+	fileMsg.RequestPreview()
+	fileMsg.WaitDownload()
+
+	if !fileMsg.HasImageError() {
+		t.Fatalf("expected HasImageError() to be true after failure")
+	}
+
+	// Step 2: Retry via RequestPreview()
+	fileMsg.RequestPreview()
+	fileMsg.WaitDownload()
+
+	if fileMsg.HasImageError() {
+		t.Fatalf("expected HasImageError() to be false after successful retry")
+	}
+	if len(fileMsg.ImageData()) == 0 {
+		t.Fatalf("expected ImageData() to be populated after retry")
 	}
 }

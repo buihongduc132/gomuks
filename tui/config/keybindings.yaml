@@ -47,7 +47,8 @@ room:
     'PageUp': scroll_up
     'PageDown': scroll_down
     'Ctrl+r': reply
-    'Ctrl+i': load_image
+    'Ctrl+o': load_image
+    'Alt+i': load_image
     'Ctrl+t': tag_user
     'Alt+r': react
     'Alt+Delete': redact

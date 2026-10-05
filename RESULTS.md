@@ -35,7 +35,7 @@ was read.
 Clean checkout of `5a51d80d` (fresh worktree, fresh `go mod download`): builds, all
 three gates exit 0, tracked-source guard passes, P2P green (0 failures, 100% pass). `FINAL_EXIT=0`.
 
-Six commits on `gated/c1-image-ondemand`:
+Seven commits on `gated/c1-image-ondemand` (prior to rework):
 
 - `70ae8af0` G1 — eager fetch removed from `ParseMessage`
 - `a48d56d2` G2 — on-demand select flow
@@ -43,6 +43,15 @@ Six commits on `gated/c1-image-ondemand`:
 - `83cfeeb1` G3 — track `cellsize.go` + `cellsize_test.go` (see harness defect 3)
 - `37084f55` R-01 — fix(tui): restore image buffer rendering and viewport clipping parity (User Decision: Reading A)
 - `5a51d80d` G2 verification — consume previewRequested in room view and add comprehensive unit tests (`filemessage_ondemand_test.go`, `room_view_ondemand_test.go`)
+- `308c6e0e` docs — document on-demand image loading and R-01 user ruling
+
+Rework round updates:
+- Trigger updated to `Ctrl+o` and `Alt+i` in `keybindings.yaml` (`Ctrl+i` normalized as Tab in terminal `tcell`).
+- Windows cross-build compatibility: `//go:build unix` in `cellsize_unix.go`, fallback `cellsize_nonunix.go`.
+- Wires `termimg.CellAspectRatio()` directly into `CalculateClampedDimensions` call in `filemessage.go`.
+- Preferences gating (`DisableDownloads`, `DisableImages`) in `RoomView.OnSelect` and retry support after transient error via `RequestPreview()`.
+- Antidote tests in `room_view_ondemand_test.go` and `cellsize_test.go` failing deterministically on mutants (G2 no-op and G3 10x20 stub).
+- 73 top-level messages tests pass cleanly (100% green).
 
 `cellsize.go` reviewed in full: real `TIOCGWINSZ` across stdout/stderr/stdin then
 `/dev/tty`, explicit `ok=false` when the terminal reports no pixel metrics, no silent

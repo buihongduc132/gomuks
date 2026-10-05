@@ -184,18 +184,25 @@ func (view *RoomView) StartSelecting(reason SelectReason, content string) {
 	view.selectReason = reason
 	view.selectContent = content
 	msgView := view.MessageView()
-	if selected := msgView.GetSelected(); selected != nil {
-		view.OnSelect(selected)
-	} else {
-		view.input.Blur()
-		view.SelectPrevious()
+	if msgView != nil {
+		if selected := msgView.GetSelected(); selected != nil {
+			view.OnSelect(selected)
+		} else {
+			if view.input != nil {
+				view.input.Blur()
+			}
+			view.SelectPrevious()
+		}
 	}
 }
 
 func (view *RoomView) StopSelecting() {
 	view.selecting = false
 	view.selectContent = ""
-	view.MessageView().SetSelected(nil)
+	view.selectReason = ""
+	if msgView := view.MessageView(); msgView != nil {
+		msgView.SetSelected(nil)
+	}
 }
 
 func (view *RoomView) OnSelect(message *messages.UIMessage) {
@@ -227,7 +234,15 @@ func (view *RoomView) OnSelect(message *messages.UIMessage) {
 		//}
 	case SelectImage:
 		if fm, ok := message.Renderer.(*messages.FileMessage); ok {
-			if !fm.IsPreviewRequested() {
+			if view.config != nil && view.config.Preferences.DisableDownloads {
+				view.SetStatusNotification("Downloads are disabled in settings", 2*time.Second)
+				break
+			}
+			if view.config != nil && view.config.Preferences.DisableImages {
+				view.SetStatusNotification("Images are disabled in settings", 2*time.Second)
+				break
+			}
+			if !fm.IsPreviewRequested() || fm.HasImageError() {
 				fm.RequestPreview()
 				view.SetStatusNotification("Loading image preview...", 2*time.Second)
 			}
@@ -556,6 +571,9 @@ func (view *RoomView) filterOwnOnly(evt *database.Event) bool {
 }
 
 func (view *RoomView) findMessage(current *database.Event, forward bool, allow findFilter) *messages.UIMessage {
+	if view == nil || view.Room == nil {
+		return nil
+	}
 	timelinePtr := view.Room.TimelineCache.Current()
 	if timelinePtr == nil {
 		return nil

@@ -97,11 +97,11 @@ type FileMessage struct {
 	room   *store.RoomStore
 	uiMsg  *UIMessage
 
-	downloading        bool
-	downloadDone       chan struct{}
-	pendingCallbacks   []func()
-	callbackRunnerGID  int64
-	previewRequested   bool
+	downloading       bool
+	downloadDone      chan struct{}
+	pendingCallbacks  []func()
+	callbackRunnerGID int64
+	previewRequested  bool
 
 	downloadFn         func(uri id.ContentURI, encrypted bool) ([]byte, error)
 	ActiveRoomChecker  func() bool
@@ -580,11 +580,20 @@ func (msg *FileMessage) SetOnDownloadComplete(fn func()) {
 }
 
 // RequestPreview records an explicit preview request and calls DownloadPreview.
+// If an error previously occurred, it resets the error to allow retrying.
 func (msg *FileMessage) RequestPreview() {
 	msg.mu.Lock()
 	msg.previewRequested = true
+	msg.imageErr = nil
 	msg.mu.Unlock()
 	msg.DownloadPreview()
+}
+
+// HasImageError returns true if the image preview encountered an error.
+func (msg *FileMessage) HasImageError() bool {
+	msg.mu.RLock()
+	defer msg.mu.RUnlock()
+	return msg.imageErr != nil
 }
 
 // IsPreviewRequested returns true if an on-demand preview was requested for this file message.
@@ -706,7 +715,7 @@ func (msg *FileMessage) CalculateBuffer(prefs config.UserPreferences, width int,
 		maxRows = termimg.DefaultMaxHeight
 	}
 
-	bbox := termimg.CalculateClampedDimensions(cfg.Width, cfg.Height, width, maxCols, maxRows)
+	bbox := termimg.CalculateClampedDimensions(cfg.Width, cfg.Height, width, maxCols, maxRows, termimg.CellAspectRatio())
 	if bbox.Cols < 1 {
 		bbox.Cols = 1
 	}
