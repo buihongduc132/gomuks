@@ -43,8 +43,6 @@ func makeE2EMessageEvent(eventID string, sender string, msgType event.MessageTyp
 	}
 }
 
-
-
 // scrapeScreenRow extracts all runes from a given screen row.
 func scrapeScreenRow(sim tcell.SimulationScreen, y int, width int) string {
 	var sb strings.Builder

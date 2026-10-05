@@ -293,7 +293,9 @@ func TestChallenger2_M3_TimelineExpansion_ConcurrentStress(t *testing.T) {
 // clears msg.buffer = nil (lines 438, 531).
 // If Draw() executes before CalculateBuffer() rebuilds the buffer, msg.Height() returns 0.
 // In MessageView.Draw() line 382:
-//     line += msg.Height()
+//
+//	line += msg.Height()
+//
 // Because msg.Height() is 0, line never increments, causing an infinite loop.
 func TestChallenger2_M3_Draw_InfiniteLoop_OnZeroHeightMessage(t *testing.T) {
 	mv, _, _, fileMsg := setupTestMessageView(t, 5, 3)

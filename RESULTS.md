@@ -86,12 +86,12 @@ Fixed in two places:
 This is the defect the "verify PUSHED state, not local worktree" rule exists to catch.
 Caught by the rule, exactly as written.
 
-## RESOLVED per user decision
+## RESOLVED — Caption Retention & Bounded Geometry (RED 2)
 
-**R-01** — User decision: **Reading A ruled**. Dispatched by user via `/goal finish… — make go test -count=1 ./tui + ./tui/lib/termimg/... 0-fail + go build ./cmd/gomuks-terminal green`.
-Tests are right: total rendered height must stay ≤ `DefaultMaxHeight` (16). Commit `43b541b2` was invalid to prepend text into image buffer causing height overflow, placeholder corruptions, and boundary clipping bypass.
-Resolved in commit `37084f55` (`fix(tui): restore image buffer rendering and viewport clipping parity`).
-Result: 0 failures across all 69 messages tests, all 195 P2P tests passing, all gates green.
+- Message body caption text is preserved in full below the image graphic (`PROBE_BODY_VISIBLE=true`), budgeted cleanly within max 16 rows (`PROBE_BUFLEN <= 16`), satisfying caption retention from `43b541b2` and bounded geometry constraints without regression.
+- Keybindings deliverable across all terminals: `Ctrl+o` (0x0F) and `Alt+i` (Esc+i) in `keybindings.yaml` resolving tcell ASCII 0x09 normalization limitation.
+- Real terminfo screen end-to-end test in `room_view_ondemand_test.go` verifying byte decoding and on-demand trigger through `xterm-256color` terminfo.
+- Full test suites pass: `go test -count=1 ./tui/...` (230+ PASS / 0 FAIL), `go test -count=1 ./tui/lib/termimg/...` (PASS), `go build ./cmd/gomuks-terminal` (GREEN).
 
 ## BLOCKED on user decision
 

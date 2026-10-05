@@ -172,5 +172,3 @@ func TestFuzzyPickerModal_FilterAndRestoreAll(t *testing.T) {
 		t.Errorf("expected first item to be 'All Rooms', got %q", picker.matches[0].Target)
 	}
 }
-
-

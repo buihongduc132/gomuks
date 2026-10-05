@@ -127,7 +127,6 @@ func (fp *FuzzyPickerModal) changeHandler(str string) {
 	}
 }
 
-
 func (fp *FuzzyPickerModal) OnKeyEvent(event mauview.KeyEvent) bool {
 	highlights := fp.results.GetHighlights()
 	kb := config.Keybind{

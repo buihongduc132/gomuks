@@ -41,8 +41,6 @@ func makeChallenger1PNG(w, h int) []byte {
 	return buf.Bytes()
 }
 
-
-
 // ---------------------------------------------------------------------------
 // 1. Stress: CalculateBuffer on UI thread vs InvalidateBuffer on background threads
 // ---------------------------------------------------------------------------
@@ -285,8 +283,9 @@ func TestChallenger1_CallbackSelfMutation_Stress(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. Stress: High Contention Mixed Operations (CalculateBuffer, Invalidate,
-//    Download, SetImageData) WITHOUT Clone across 15 Goroutines
+//  4. Stress: High Contention Mixed Operations (CalculateBuffer, Invalidate,
+//     Download, SetImageData) WITHOUT Clone across 15 Goroutines
+//
 // ---------------------------------------------------------------------------
 func TestChallenger1_HighContentionNoClone_Stress(t *testing.T) {
 	pngData := makeChallenger1PNG(32, 32)
@@ -382,8 +381,10 @@ func TestChallenger1_HighContentionNoClone_Stress(t *testing.T) {
 
 // ---------------------------------------------------------------------------
 // 4b. Stress: High Contention Mixed Operations WITH Continuous Clone() Calls
-//     Simultaneous CalculateBuffer on UI thread, InvalidateBuffer on background threads,
-//     continuous Clone calls + rendering of clones, active downloads, and SetImageData.
+//
+//	Simultaneous CalculateBuffer on UI thread, InvalidateBuffer on background threads,
+//	continuous Clone calls + rendering of clones, active downloads, and SetImageData.
+//
 // ---------------------------------------------------------------------------
 func TestChallenger1_HighContentionMixedOperations_Stress(t *testing.T) {
 	pngData := makeChallenger1PNG(48, 48)
@@ -594,8 +595,9 @@ func TestChallenger1_ConcurrentFailingDownloads_Stress(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Stress: Simultaneous CalculateBuffer on UI thread, InvalidateBuffer on
-//    background threads, and continuous Clone() calls under Go race detector.
+//  7. Stress: Simultaneous CalculateBuffer on UI thread, InvalidateBuffer on
+//     background threads, and continuous Clone() calls under Go race detector.
+//
 // ---------------------------------------------------------------------------
 func TestChallenger1_Simultaneous_Calculate_Invalidate_Clone_Stress(t *testing.T) {
 	pngData := makeChallenger1PNG(60, 60)

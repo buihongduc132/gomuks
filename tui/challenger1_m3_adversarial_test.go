@@ -36,10 +36,10 @@ func TestChallenger1_M3_DegenerateDimensions(t *testing.T) {
 	testDimensions := [][2]int{
 		{0, 0},
 		{1, 1},
-		{4, 10},  // contentWidth < 5 in non-bare mode
+		{4, 10}, // contentWidth < 5 in non-bare mode
 		{5, 10},
 		{10, 2},
-		{80, 1},  // height = 1
+		{80, 1}, // height = 1
 		{80, 24},
 		{500, 200},
 	}
@@ -168,8 +168,10 @@ func TestChallenger1_M3_DynamicHeightMutation_BeforeDraw(t *testing.T) {
 // ---------------------------------------------------------------------------
 // Tests that:
 // a) When user is scrolled up (scrollOffset = 20), appending new messages
-//    increases scrollOffset by the exact height of the new messages, keeping
-//    the viewport locked to the historical messages being viewed.
+//
+//	increases scrollOffset by the exact height of the new messages, keeping
+//	the viewport locked to the historical messages being viewed.
+//
 // b) Prepending messages (pagination) preserves scrollOffset.
 func TestChallenger1_M3_ScrollOffsetInvariants_NewMessages(t *testing.T) {
 	mv, room, events, _ := setupTestMessageView(t, 20, 10)

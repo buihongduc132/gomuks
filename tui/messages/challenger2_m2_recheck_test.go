@@ -632,6 +632,3 @@ func TestChallenger2_WaitDownloadWhileCallbacksRunning_ReturnsImmediatelyWithout
 		t.Fatal("WaitDownload timed out")
 	}
 }
-
-
-

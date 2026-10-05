@@ -56,7 +56,7 @@ type MessageView struct {
 	prevWidth    int
 	selected     database.EventRowID
 
-	invalidated  atomic.Bool
+	invalidated atomic.Bool
 }
 
 // InvalidateTimeline forces the next update() call to recalculate message layout heights without resetting prevTimeline.
@@ -90,6 +90,9 @@ func (view *MessageView) SetSelected(message *messages.UIMessage) {
 func (view *MessageView) GetSelected() *messages.UIMessage {
 	view.lock.RLock()
 	defer view.lock.RUnlock()
+	if view == nil || view.parent == nil || view.parent.Room == nil {
+		return nil
+	}
 	evt := view.parent.Room.GetEventByRowID(view.selected)
 	if evt == nil || evt.RenderMeta == nil {
 		return nil

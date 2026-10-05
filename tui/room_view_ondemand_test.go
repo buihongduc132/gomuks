@@ -19,6 +19,7 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"testing"
 	"time"
 
@@ -29,11 +30,17 @@ import (
 	"maunium.net/go/mautrix/id"
 
 	"go.mau.fi/gomuks/pkg/hicli/database"
+	"go.mau.fi/gomuks/pkg/hicli/jsoncmd"
+	"go.mau.fi/gomuks/pkg/rpc/store"
 	"go.mau.fi/gomuks/tui/config"
 	"go.mau.fi/gomuks/tui/messages"
 )
 
 func makeTestFileMessage() (*messages.UIMessage, *messages.FileMessage) {
+	return makeTestFileMessageWithRowID(1)
+}
+
+func makeTestFileMessageWithRowID(rowID database.EventRowID) (*messages.UIMessage, *messages.FileMessage) {
 	content := &event.MessageEventContent{
 		MsgType: event.MsgImage,
 		Body:    "sample.png",
@@ -41,8 +48,8 @@ func makeTestFileMessage() (*messages.UIMessage, *messages.FileMessage) {
 	}
 	raw, _ := json.Marshal(content)
 	evt := &database.Event{
-		RowID:     1,
-		ID:        id.EventID("$img_evt_1"),
+		RowID:     rowID,
+		ID:        id.EventID(fmt.Sprintf("$img_evt_%d", rowID)),
 		Sender:    id.UserID("@alice:matrix.org"),
 		Type:      event.EventMessage.Type,
 		Content:   raw,
@@ -284,5 +291,172 @@ func TestRoomView_OnDemand_RetryAfterFailure(t *testing.T) {
 func TestRoomView_OnDemand_SelectReasonConstant(t *testing.T) {
 	if SelectImage != SelectReason("load image") {
 		t.Fatalf("expected SelectImage to equal 'load image', got %q", SelectImage)
+	}
+}
+
+type mockPipeTty struct {
+	r *io.PipeReader
+	w *io.PipeWriter
+}
+
+func (m *mockPipeTty) Read(p []byte) (n int, err error) {
+	return m.r.Read(p)
+}
+
+func (m *mockPipeTty) Write(p []byte) (n int, err error) {
+	return len(p), nil
+}
+
+func (m *mockPipeTty) Close() error {
+	_ = m.r.Close()
+	_ = m.w.Close()
+	return nil
+}
+
+func (m *mockPipeTty) Start() error { return nil }
+func (m *mockPipeTty) Stop() error {
+	_ = m.r.Close()
+	_ = m.w.Close()
+	return nil
+}
+func (m *mockPipeTty) Drain() error {
+	_ = m.r.Close()
+	_ = m.w.Close()
+	return nil
+}
+func (m *mockPipeTty) NotifyResize(cb func()) {}
+func (m *mockPipeTty) WindowSize() (tcell.WindowSize, error) {
+	return tcell.WindowSize{Width: 80, Height: 24}, nil
+}
+
+func TestRoomView_OnDemand_RealTerminfoScreen_KeyEventDispatch(t *testing.T) {
+	ti, err := tcell.LookupTerminfo("xterm-256color")
+	if err != nil {
+		t.Fatalf("failed to lookup xterm-256color terminfo: %v", err)
+	}
+
+	pr, pw := io.Pipe()
+	tty := &mockPipeTty{r: pr, w: pw}
+	screen, err := tcell.NewTerminfoScreenFromTtyTerminfo(tty, ti)
+	if err != nil {
+		t.Fatalf("failed to create terminfo screen: %v", err)
+	}
+	if err = screen.Init(); err != nil {
+		t.Fatalf("failed to init terminfo screen: %v", err)
+	}
+	defer func() {
+		_ = pr.Close()
+		_ = pw.Close()
+		screen.Fini()
+	}()
+
+	cfg := config.NewConfig()
+	cfg.LoadKeybindings()
+
+	uiMsg, fm := makeTestFileMessageWithRowID(1)
+	roomID := id.RoomID("!test_real_terminfo:example.org")
+	meta := &database.Room{ID: roomID}
+	room := store.NewRoomStore(nil, meta)
+	room.ApplySync(&jsoncmd.SyncRoom{Meta: meta, Events: []*database.Event{uiMsg.Event}})
+	events := []*database.Event{uiMsg.Event}
+	room.TimelineCache.SetCurrent(&events)
+
+	mainView := &MainView{config: cfg}
+	rv := &RoomView{
+		parent: mainView,
+		Room:   room,
+		config: cfg,
+		input:  mauview.NewInputArea(),
+	}
+	mv := NewMessageView(rv)
+	rv.content = mv
+	mv.SetSelected(nil)
+	mv.SetSelected(uiMsg)
+
+	eventCh := make(chan tcell.Event, 10)
+	go func() {
+		for {
+			ev := screen.PollEvent()
+			if ev == nil {
+				return
+			}
+			eventCh <- ev
+		}
+	}()
+
+	nextKeyEvent := func() *tcell.EventKey {
+		for {
+			select {
+			case ev := <-eventCh:
+				if keyEv, ok := ev.(*tcell.EventKey); ok {
+					return keyEv
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatalf("timed out waiting for key event")
+			}
+		}
+	}
+
+	// 1. Dispatch Ctrl+O through REAL terminfo screen decoder (raw byte 0x0F)
+	_, _ = pw.Write([]byte{0x0F})
+	keyEv := nextKeyEvent()
+	if keyEv.Key() != tcell.KeyCtrlO || (keyEv.Modifiers()&tcell.ModCtrl == 0) {
+		t.Fatalf("expected KeyCtrlO with ModCtrl, got Key=%v, Mod=%v", keyEv.Key(), keyEv.Modifiers())
+	}
+
+	handled := rv.OnKeyEvent(keyEv)
+	if !handled {
+		t.Fatalf("expected rv.OnKeyEvent to handle Ctrl+O event")
+	}
+	if !rv.selecting || rv.selectReason != SelectImage {
+		t.Fatalf("expected rv.selecting=true and selectReason=SelectImage, got selecting=%v, reason=%v", rv.selecting, rv.selectReason)
+	}
+	if !fm.IsPreviewRequested() {
+		t.Fatalf("expected fm.IsPreviewRequested() to be true after Ctrl+O key dispatch")
+	}
+
+	// 2. Dispatch Alt+i through REAL terminfo screen decoder (raw sequence \x1bi)
+	uiMsg, fm = makeTestFileMessageWithRowID(2)
+	room.ApplySync(&jsoncmd.SyncRoom{Meta: meta, Events: []*database.Event{uiMsg.Event}})
+	events = []*database.Event{uiMsg.Event}
+	room.TimelineCache.SetCurrent(&events)
+	mv.SetSelected(nil)
+	mv.SetSelected(uiMsg)
+	rv.selecting = false
+	rv.selectReason = ""
+
+	_, _ = pw.Write([]byte("\x1bi"))
+	altEv := nextKeyEvent()
+	if altEv.Rune() != 'i' || (altEv.Modifiers()&tcell.ModAlt == 0) {
+		t.Fatalf("expected Rune 'i' with ModAlt, got Rune=%c, Mod=%v", altEv.Rune(), altEv.Modifiers())
+	}
+
+	handled = rv.OnKeyEvent(altEv)
+	if !handled || !rv.selecting || rv.selectReason != SelectImage {
+		t.Fatalf("expected Alt+i to trigger SelectImage")
+	}
+	if !fm.IsPreviewRequested() {
+		t.Fatalf("expected fm.IsPreviewRequested() to be true after Alt+i key dispatch")
+	}
+
+	// 3. Negative check: byte 0x09 (Tab / Ctrl+I) is decoded as KeyTAB with ModNone in terminfo, NOT firing load_image
+	uiMsg, fm = makeTestFileMessageWithRowID(3)
+	room.ApplySync(&jsoncmd.SyncRoom{Meta: meta, Events: []*database.Event{uiMsg.Event}})
+	events = []*database.Event{uiMsg.Event}
+	room.TimelineCache.SetCurrent(&events)
+	mv.SetSelected(nil)
+	mv.SetSelected(uiMsg)
+	rv.selecting = false
+	rv.selectReason = ""
+
+	_, _ = pw.Write([]byte{0x09})
+	tabEv := nextKeyEvent()
+	// Verify that tcell parses byte 0x09 as KeyTAB with ModNone (proving why Ctrl+i fails to fire load_image)
+	if tabEv.Key() != tcell.KeyTAB || tabEv.Modifiers() != tcell.ModNone {
+		t.Fatalf("expected KeyTAB with ModNone for byte 0x09, got Key=%v, Mod=%v", tabEv.Key(), tabEv.Modifiers())
+	}
+	_ = rv.OnKeyEvent(tabEv)
+	if fm.IsPreviewRequested() {
+		t.Fatalf("expected byte 0x09 (Tab) not to trigger on-demand preview request")
 	}
 }

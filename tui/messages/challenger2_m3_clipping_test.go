@@ -379,7 +379,7 @@ func TestChallenger2_M3_ConcurrentClippingStress(t *testing.T) {
 
 			for iter := 0; iter < iterations; iter++ {
 				// Vary offsets across clipped top, visible, and clipped bottom
-				offset := (iter%60) - 20 // ranges from -20 to +39
+				offset := (iter % 60) - 20 // ranges from -20 to +39
 				proxy := mauview.NewProxyScreen(content, 2, offset, 70, imgRows)
 
 				if iter%3 == 0 {
