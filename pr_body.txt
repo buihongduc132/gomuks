@@ -1,0 +1,10 @@
+This PR adds support for displaying inline images in the terminal, similar to how it works in `iamb`.
+
+Features:
+1. **Kitty Graphics Protocol** (WezTerm, Kitty, Ghostty) - uses Unicode placeholders and combining diacritics so the terminal handles scrolling natively without screen tearing or locking.
+2. **iTerm2 OSC 1337** - with tmux passthrough support.
+3. **ANSI TrueColor half-blocks** - universal fallback using the existing `ansimage` library.
+
+It also downloads image thumbnails asynchronously so it doesn't block the UI loop, and scales them down to a max of 66x16 to prevent breaking the timeline view.
+
+(Note: I've removed the massive generated stress tests that were bloating this PR's diff size, sorry about that!)
