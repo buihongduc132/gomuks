@@ -10,17 +10,25 @@ package upgrades
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 
 	"go.mau.fi/util/dbutil"
 )
 
-var upgradeV27 = dbutil.WrapUpgrade(-1, 27, 10, "Mark OTKs as needing repair", dbutil.TxnModeOn, func(ctx context.Context, db *dbutil.Database) error {
+var upgradeV27 = dbutil.WrapUpgrade(-1, 27, 10, "Mark OTKs as needing repair", dbutil.TxnModeOn, runUpgradeV27)
+
+func runUpgradeV27(ctx context.Context, db *dbutil.Database) error {
 	exists, err := db.TableExists(ctx, "crypto_account")
 	if err != nil || !exists {
 		return err
 	}
 	var shared bool
 	err = db.QueryRow(ctx, "SELECT shared FROM crypto_account LIMIT 1").Scan(&shared)
+	if errors.Is(err, sql.ErrNoRows) {
+		// Fresh or logged-out profiles have no crypto account to repair.
+		return nil
+	}
 	if err != nil || !shared {
 		return err
 	}
@@ -31,4 +39,4 @@ var upgradeV27 = dbutil.WrapUpgrade(-1, 27, 10, "Mark OTKs as needing repair", d
 	}
 	_, err = db.Exec(ctx, `CREATE TABLE otks_need_reset (noop)`)
 	return err
-})
+}
